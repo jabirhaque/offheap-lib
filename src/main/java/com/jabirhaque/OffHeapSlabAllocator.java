@@ -18,4 +18,8 @@ public class OffHeapSlabAllocator {
         System.out.println("Address size: " + unsafe.addressSize());
         System.out.println("Page size: " + unsafe.pageSize());
     }
+
+    public long allocateMemory(long bytes){
+        return unsafe.allocateMemory(bytes);
+    }
 }
