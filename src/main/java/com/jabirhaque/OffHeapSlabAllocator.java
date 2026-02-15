@@ -3,6 +3,8 @@ package com.jabirhaque;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Stack;
 
 public class OffHeapSlabAllocator {
@@ -11,15 +13,18 @@ public class OffHeapSlabAllocator {
     private final long totalSize;
     private final long blockSize;
     private final long blockCount;
+    private final long baseAddress;
 
     private Stack<Long> freeBlocks = new Stack<>();
+    private Set<Long> freeSet = new HashSet<>();
+    private Set<Long> allocatedSet = new HashSet<>();
 
     public OffHeapSlabAllocator(long totalSize, long blockSize) throws NoSuchFieldException, IllegalAccessException {
         this.unsafe = getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = blockSize;
         this.blockCount = totalSize/blockSize;
-        initialiseBlocks();
+        this.baseAddress = initialiseBlocks();
     }
 
     public OffHeapSlabAllocator(long totalSize) throws NoSuchFieldException, IllegalAccessException {
@@ -27,7 +32,7 @@ public class OffHeapSlabAllocator {
         this.totalSize = totalSize;
         this.blockSize = 64;
         this.blockCount = totalSize/blockSize;
-        initialiseBlocks();
+        this.baseAddress = initialiseBlocks();
     }
 
     public OffHeapSlabAllocator() throws NoSuchFieldException, IllegalAccessException {
@@ -35,17 +40,21 @@ public class OffHeapSlabAllocator {
         this.totalSize = 16 * 1024 * 1024;
         this.blockSize = 64;
         this.blockCount = totalSize/blockSize;
-        initialiseBlocks();
+        this.baseAddress = initialiseBlocks();
     }
 
-    private void initialiseBlocks(){
-        long baseAddress = unsafe.allocateMemory(totalSize);
-        long current = baseAddress;
-        long limit = baseAddress+totalSize;
+    private long initialiseBlocks(){
+        long address = unsafe.allocateMemory(totalSize);
+
+        long current = address;
+        long limit = address+totalSize;
         while (current+blockSize <= limit ){
             freeBlocks.push(current);
+            freeSet.add(current);
             current += blockSize;
         }
+
+        return address;
     }
 
     public long allocate(long bytes) throws IllegalArgumentException {
@@ -57,7 +66,17 @@ public class OffHeapSlabAllocator {
 
     private long allocateBlock(){
         if (freeBlocks.empty()) throw new OutOfMemoryError("Out of blocks");
-        return freeBlocks.pop();
+        long address = freeBlocks.pop();
+        freeSet.remove(address);
+        allocatedSet.add(address);
+        return address;
+    }
+
+    public void free(long address){
+        if (!allocatedSet.contains(address))  throw new IllegalArgumentException("Provided address is invalid");
+        allocatedSet.remove(address);
+        freeSet.add(address);
+        freeBlocks.push(address);
     }
 
     private static Unsafe getUnsafe() throws NoSuchFieldException, IllegalAccessException {
