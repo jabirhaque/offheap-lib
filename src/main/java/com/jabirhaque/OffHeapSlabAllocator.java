@@ -15,6 +15,8 @@ public class OffHeapSlabAllocator {
     private final long blockCount;
     private final long baseAddress;
 
+    private boolean closed = false;
+
     private Stack<Long> freeBlocks = new Stack<>();
     private Set<Long> freeSet = new HashSet<>();
     private Set<Long> allocatedSet = new HashSet<>();
@@ -58,6 +60,9 @@ public class OffHeapSlabAllocator {
     }
 
     public long allocate(long bytes) throws IllegalArgumentException {
+        if (closed){
+            throw new IllegalStateException("Allocator closed");
+        }
         if (bytes > blockSize){
             throw new IllegalArgumentException("Requested size exceeds block size");
         }
@@ -73,10 +78,23 @@ public class OffHeapSlabAllocator {
     }
 
     public void free(long address){
+        if (closed){
+            throw new IllegalStateException("Allocator closed");
+        }
         if (!allocatedSet.contains(address))  throw new IllegalArgumentException("Provided address is invalid");
         allocatedSet.remove(address);
         freeSet.add(address);
         freeBlocks.push(address);
+    }
+
+    public void close(){
+        if (closed) return;
+        unsafe.freeMemory(baseAddress);
+        closed = true;
+
+        freeBlocks.clear();
+        freeSet.clear();
+        allocatedSet.clear();
     }
 
     private static Unsafe getUnsafe() throws NoSuchFieldException, IllegalAccessException {
