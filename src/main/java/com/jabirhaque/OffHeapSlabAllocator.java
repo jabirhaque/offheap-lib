@@ -45,6 +45,14 @@ public class OffHeapSlabAllocator {
         this.baseAddress = initialiseBlocks();
     }
 
+    public OffHeapSlabAllocator(Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+        this.unsafe = unsafe;
+        this.totalSize = 16 * 1024 * 1024;
+        this.blockSize = 64;
+        this.blockCount = totalSize/blockSize;
+        this.baseAddress = initialiseBlocks();
+    }
+
     private long initialiseBlocks(){
         long address = unsafe.allocateMemory(totalSize);
 
@@ -63,7 +71,7 @@ public class OffHeapSlabAllocator {
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
-        if (bytes > blockSize){
+        if (bytes > blockSize) {
             throw new IllegalArgumentException("Requested size exceeds block size");
         }
         return allocateBlock();
@@ -101,6 +109,14 @@ public class OffHeapSlabAllocator {
         Field f = Unsafe.class.getDeclaredField("theUnsafe");
         f.setAccessible(true);
         return (Unsafe) f.get(null);
+    }
+
+    public int getAddressSize(){
+        return unsafe.addressSize();
+    }
+
+    public int getPageSize(){
+        return unsafe.pageSize();
     }
 
     public void printInfo(){
