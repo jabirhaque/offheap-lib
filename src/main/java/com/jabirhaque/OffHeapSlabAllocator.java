@@ -53,6 +53,14 @@ public class OffHeapSlabAllocator {
         this.baseAddress = initialiseBlocks();
     }
 
+    public OffHeapSlabAllocator(long totalSize, long blockSize, Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+        this.unsafe = unsafe;
+        this.totalSize = totalSize;
+        this.blockSize = blockSize;
+        this.blockCount = totalSize/blockSize;
+        this.baseAddress = initialiseBlocks();
+    }
+
     private long initialiseBlocks(){
         long address = unsafe.allocateMemory(totalSize);
 

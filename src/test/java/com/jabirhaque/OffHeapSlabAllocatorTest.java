@@ -44,4 +44,22 @@ public class OffHeapSlabAllocatorTest {
             Assertions.assertEquals(expected.get(i), actual.get(i));
         }
     }
+
+    @Test
+    public void testFIFOAllocationOrder() throws NoSuchFieldException, IllegalAccessException {
+        Mockito.when(unsafeMock.allocateMemory(64)).thenReturn(0L);
+
+        OffHeapSlabAllocator offHeapSlabAllocator = new OffHeapSlabAllocator(64, 16, unsafeMock);
+
+        Assertions.assertEquals(48, offHeapSlabAllocator.allocate(16));
+        Assertions.assertEquals(32, offHeapSlabAllocator.allocate(16));
+        offHeapSlabAllocator.free(32);
+        Assertions.assertEquals(32, offHeapSlabAllocator.allocate(16));
+        Assertions.assertEquals(16, offHeapSlabAllocator.allocate(16));
+        offHeapSlabAllocator.free(32);
+        offHeapSlabAllocator.free(16);
+        Assertions.assertEquals(16, offHeapSlabAllocator.allocate(16));
+        Assertions.assertEquals(32, offHeapSlabAllocator.allocate(16));
+        Assertions.assertEquals(0, offHeapSlabAllocator.allocate(16));
+    }
 }
