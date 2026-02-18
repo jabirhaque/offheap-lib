@@ -114,6 +114,11 @@ public class OffHeapSlabAllocator {
 
     public void close(){
         if (closed) return;
+
+        if (!allocatedSet.isEmpty()){
+            throw new IllegalStateException("Cannot close allocator: " + allocatedSet.size() + " blocks still allocated");
+        }
+
         unsafe.freeMemory(baseAddress);
         closed = true;
 
@@ -126,14 +131,6 @@ public class OffHeapSlabAllocator {
         Field f = Unsafe.class.getDeclaredField("theUnsafe");
         f.setAccessible(true);
         return (Unsafe) f.get(null);
-    }
-
-    public int getAddressSize(){
-        return unsafe.addressSize();
-    }
-
-    public int getPageSize(){
-        return unsafe.pageSize();
     }
 
     public void printInfo(){
