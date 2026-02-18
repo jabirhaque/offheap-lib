@@ -62,4 +62,13 @@ public class OffHeapSlabAllocatorTest {
         Assertions.assertEquals(32, offHeapSlabAllocator.allocate(16));
         Assertions.assertEquals(0, offHeapSlabAllocator.allocate(16));
     }
+
+    @Test void blockSizeExceedsTotalSize(){
+
+        Throwable exception = Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            new OffHeapSlabAllocator(512, 1024, unsafeMock);
+        });
+
+        Assertions.assertEquals("Block size cannot be greater than total size", exception.getMessage());
+    }
 }

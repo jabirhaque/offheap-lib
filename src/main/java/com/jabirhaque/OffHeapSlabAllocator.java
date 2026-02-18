@@ -22,6 +22,9 @@ public class OffHeapSlabAllocator {
     private Set<Long> allocatedSet = new HashSet<>();
 
     public OffHeapSlabAllocator(long totalSize, long blockSize) throws NoSuchFieldException, IllegalAccessException {
+        if (blockSize>totalSize){
+            throw new IllegalArgumentException("Block size cannot be greater than total size");
+        }
         this.unsafe = getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = blockSize;
@@ -30,6 +33,9 @@ public class OffHeapSlabAllocator {
     }
 
     public OffHeapSlabAllocator(long totalSize) throws NoSuchFieldException, IllegalAccessException {
+        if (64>totalSize){
+            throw new IllegalArgumentException("Block size cannot be greater than total size");
+        }
         this.unsafe = getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = 64;
@@ -54,6 +60,9 @@ public class OffHeapSlabAllocator {
     }
 
     public OffHeapSlabAllocator(long totalSize, long blockSize, Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+        if (blockSize>totalSize){
+            throw new IllegalArgumentException("Block size cannot be greater than total size");
+        }
         this.unsafe = unsafe;
         this.totalSize = totalSize;
         this.blockSize = blockSize;
