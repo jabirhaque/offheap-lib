@@ -4,7 +4,7 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
 
-public class OffHeapSlabAllocator {
+public class OffHeapSlabAllocator implements AutoCloseable{
 
     private final Unsafe unsafe;
     private final long totalSize;
