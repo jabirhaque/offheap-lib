@@ -3,9 +3,6 @@ package com.jabirhaque;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Stack;
 
 public class OffHeapSlabAllocator {
 
@@ -17,8 +14,9 @@ public class OffHeapSlabAllocator {
 
     private boolean closed = false;
 
-    private Stack<Long> freeBlocks = new Stack<>();
-    private Set<Long> allocatedSet = new HashSet<>();
+    private int[] freeBlocks;
+    private boolean[] allocatedSet;
+    private int top;
 
     public OffHeapSlabAllocator(long totalSize, long blockSize) throws NoSuchFieldException, IllegalAccessException {
         if (blockSize>totalSize){
@@ -72,12 +70,10 @@ public class OffHeapSlabAllocator {
     private long initialiseBlocks(){
         long address = unsafe.allocateMemory(totalSize);
 
-        long current = address;
-        long limit = address+totalSize;
-        while (current+blockSize <= limit ){
-            freeBlocks.push(current);
-            current += blockSize;
-        }
+        freeBlocks = new int[(int)blockCount];
+        for (int i=0; i<freeBlocks.length; i++) freeBlocks[i] = i;
+        allocatedSet = new boolean[(int)blockCount];
+        top = (int)blockCount-1;
 
         return address;
     }
@@ -93,33 +89,32 @@ public class OffHeapSlabAllocator {
     }
 
     private long allocateBlock(){
-        if (freeBlocks.empty()) throw new OutOfMemoryError("Out of blocks");
-        long address = freeBlocks.pop();
-        allocatedSet.add(address);
-        return address;
+        if (top < 0) throw new OutOfMemoryError("Out of blocks");
+        int index = freeBlocks[top--];
+        allocatedSet[index] = true;
+        return baseAddress+index*blockSize;
     }
 
     public void free(long address){
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
-        if (!allocatedSet.contains(address))  throw new IllegalArgumentException("Provided address is invalid");
-        allocatedSet.remove(address);
-        freeBlocks.push(address);
+        if (address < baseAddress || address >= baseAddress+totalSize || (address-baseAddress)%blockSize != 0) throw new IllegalArgumentException("Provided address is invalid");
+        int index = (int)((address-baseAddress)/blockSize);
+        if (!allocatedSet[index]) throw new IllegalArgumentException("Provided address is already free");
+        allocatedSet[index] = false;
+        freeBlocks[++top] = index;
     }
 
     public void close(){
         if (closed) return;
 
-        if (!allocatedSet.isEmpty()){
-            throw new IllegalStateException("Cannot close allocator: " + allocatedSet.size() + " blocks still allocated");
+        if (top != blockCount-1){
+            throw new IllegalStateException("Cannot close allocator: " + (blockCount - top - 1) + " blocks still allocated");
         }
 
         unsafe.freeMemory(baseAddress);
         closed = true;
-
-        freeBlocks.clear();
-        allocatedSet.clear();
     }
 
     private static Unsafe getUnsafe() throws NoSuchFieldException, IllegalAccessException {
