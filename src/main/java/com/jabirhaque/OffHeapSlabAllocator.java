@@ -25,7 +25,7 @@ public class OffHeapSlabAllocator implements AutoCloseable{
         this.unsafe = getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = blockSize;
-        this.blockCount = (int)(totalSize/blockSize);
+        this.blockCount = validateAndReturnCount();
         this.baseAddress = initialiseBlocks();
     }
 
@@ -68,6 +68,7 @@ public class OffHeapSlabAllocator implements AutoCloseable{
     }
 
     private int validateAndReturnCount(){
+        if (totalSize <= 0 | blockSize <= 0) throw new IllegalArgumentException("Total and block size must be at least one byte");
         long count = totalSize / blockSize;
         if (count > Integer.MAX_VALUE) throw new IllegalArgumentException("Block count exceeds limit");
         return (int)count;
