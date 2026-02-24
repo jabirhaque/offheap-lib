@@ -136,4 +136,13 @@ public class OffHeapSlabAllocatorTest {
         Throwable exception = Assertions.assertThrows(IllegalStateException.class, offHeapSlabAllocator::close);
         Assertions.assertEquals("Cannot close allocator: 2 blocks still allocated", exception.getMessage());
     }
+
+    @Test
+    public void throwsOnBlockLimit() throws NoSuchFieldException, IllegalAccessException {
+
+        Throwable exception = Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            OffHeapSlabAllocator offHeapSlabAllocator = new OffHeapSlabAllocator((long)Integer.MAX_VALUE+1, 1, unsafeMock);
+        });
+        Assertions.assertEquals("Block count exceeds limit", exception.getMessage());
+    }
 }

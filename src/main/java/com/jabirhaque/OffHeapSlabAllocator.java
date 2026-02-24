@@ -9,7 +9,7 @@ public class OffHeapSlabAllocator {
     private final Unsafe unsafe;
     private final long totalSize;
     private final long blockSize;
-    private final long blockCount;
+    private final int blockCount;
     private final long baseAddress;
 
     private boolean closed = false;
@@ -25,7 +25,7 @@ public class OffHeapSlabAllocator {
         this.unsafe = getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = blockSize;
-        this.blockCount = totalSize/blockSize;
+        this.blockCount = (int)(totalSize/blockSize);
         this.baseAddress = initialiseBlocks();
     }
 
@@ -36,7 +36,7 @@ public class OffHeapSlabAllocator {
         this.unsafe = getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = 64;
-        this.blockCount = totalSize/blockSize;
+        this.blockCount = validateAndReturnCount();
         this.baseAddress = initialiseBlocks();
     }
 
@@ -44,7 +44,7 @@ public class OffHeapSlabAllocator {
         this.unsafe = getUnsafe();
         this.totalSize = 16 * 1024 * 1024;
         this.blockSize = 64;
-        this.blockCount = totalSize/blockSize;
+        this.blockCount = validateAndReturnCount();
         this.baseAddress = initialiseBlocks();
     }
 
@@ -52,7 +52,7 @@ public class OffHeapSlabAllocator {
         this.unsafe = unsafe;
         this.totalSize = 16 * 1024 * 1024;
         this.blockSize = 64;
-        this.blockCount = totalSize/blockSize;
+        this.blockCount = validateAndReturnCount();
         this.baseAddress = initialiseBlocks();
     }
 
@@ -63,17 +63,23 @@ public class OffHeapSlabAllocator {
         this.unsafe = unsafe;
         this.totalSize = totalSize;
         this.blockSize = blockSize;
-        this.blockCount = totalSize/blockSize;
+        this.blockCount = validateAndReturnCount();
         this.baseAddress = initialiseBlocks();
+    }
+
+    private int validateAndReturnCount(){
+        long count = totalSize / blockSize;
+        if (count > Integer.MAX_VALUE) throw new IllegalArgumentException("Block count exceeds limit");
+        return (int)count;
     }
 
     private long initialiseBlocks(){
         long address = unsafe.allocateMemory(totalSize);
 
-        freeBlocks = new int[(int)blockCount];
+        freeBlocks = new int[blockCount];
         for (int i=0; i<freeBlocks.length; i++) freeBlocks[i] = i;
-        allocatedSet = new boolean[(int)blockCount];
-        top = (int)blockCount-1;
+        allocatedSet = new boolean[blockCount];
+        top = blockCount-1;
 
         return address;
     }
@@ -102,6 +108,7 @@ public class OffHeapSlabAllocator {
         if (address < baseAddress || address >= baseAddress+totalSize || (address-baseAddress)%blockSize != 0) throw new IllegalArgumentException("Provided address is invalid");
         int index = (int)((address-baseAddress)/blockSize);
         if (!allocatedSet[index]) throw new IllegalArgumentException("Provided address is already free");
+        unsafe.setMemory(address, blockSize, (byte)0);
         allocatedSet[index] = false;
         freeBlocks[++top] = index;
     }
