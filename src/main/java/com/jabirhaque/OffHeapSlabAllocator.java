@@ -4,7 +4,7 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
 
-public class OffHeapSlabAllocator implements AutoCloseable{
+public class OffHeapSlabAllocator implements OffHeapAllocator{
 
     private final Unsafe unsafe;
     private final long totalSize;
@@ -22,7 +22,7 @@ public class OffHeapSlabAllocator implements AutoCloseable{
         if (blockSize>totalSize){
             throw new IllegalArgumentException("Block size cannot be greater than total size");
         }
-        this.unsafe = getUnsafe();
+        this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = blockSize;
         this.blockCount = validateAndReturnCount();
@@ -33,7 +33,7 @@ public class OffHeapSlabAllocator implements AutoCloseable{
         if (64>totalSize){
             throw new IllegalArgumentException("Block size cannot be greater than total size");
         }
-        this.unsafe = getUnsafe();
+        this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = 64;
         this.blockCount = validateAndReturnCount();
@@ -41,14 +41,14 @@ public class OffHeapSlabAllocator implements AutoCloseable{
     }
 
     public OffHeapSlabAllocator() throws NoSuchFieldException, IllegalAccessException {
-        this.unsafe = getUnsafe();
+        this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = 16 * 1024 * 1024;
         this.blockSize = 64;
         this.blockCount = validateAndReturnCount();
         this.baseAddress = initialiseBlocks();
     }
 
-    public OffHeapSlabAllocator(Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+    public OffHeapSlabAllocator(Unsafe unsafe){
         this.unsafe = unsafe;
         this.totalSize = 16 * 1024 * 1024;
         this.blockSize = 64;
@@ -56,7 +56,7 @@ public class OffHeapSlabAllocator implements AutoCloseable{
         this.baseAddress = initialiseBlocks();
     }
 
-    public OffHeapSlabAllocator(long totalSize, long blockSize, Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+    public OffHeapSlabAllocator(long totalSize, long blockSize, Unsafe unsafe){
         if (blockSize>totalSize){
             throw new IllegalArgumentException("Block size cannot be greater than total size");
         }
@@ -85,7 +85,7 @@ public class OffHeapSlabAllocator implements AutoCloseable{
         return address;
     }
 
-    public long allocate(long bytes) throws IllegalArgumentException {
+    public long allocate(long bytes){
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
@@ -106,7 +106,7 @@ public class OffHeapSlabAllocator implements AutoCloseable{
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
-        if (address < baseAddress || address >= baseAddress+totalSize || (address-baseAddress)%blockSize != 0) throw new IllegalArgumentException("Provided address is invalid");
+        if (!owns(address)) throw new IllegalArgumentException("Provided address is invalid");
         int index = (int)((address-baseAddress)/blockSize);
         if (!allocatedSet[index]) throw new IllegalArgumentException("Provided address is already free");
         unsafe.setMemory(address, blockSize, (byte)0);
@@ -124,15 +124,14 @@ public class OffHeapSlabAllocator implements AutoCloseable{
         unsafe.freeMemory(baseAddress);
         closed = true;
     }
-
-    private static Unsafe getUnsafe() throws NoSuchFieldException, IllegalAccessException {
-        Field f = Unsafe.class.getDeclaredField("theUnsafe");
-        f.setAccessible(true);
-        return (Unsafe) f.get(null);
-    }
+    
 
     public void printInfo(){
         System.out.println("Address size: " + unsafe.addressSize());
         System.out.println("Page size: " + unsafe.pageSize());
+    }
+
+    public boolean owns(long address){
+        return (address >= baseAddress && address < baseAddress+totalSize && (address-baseAddress)%blockSize == 0);
     }
 }
