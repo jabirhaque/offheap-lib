@@ -25,8 +25,35 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
     OffHeapBuddyAllocator(long totalSize, long minSize) throws NoSuchFieldException, IllegalAccessException {
         if (minSize>totalSize){
             throw new IllegalArgumentException("Minimum block size cannot be greater than the total size");
-        }//check power of two
+        }
+        if (!powerOfTwo(totalSize) || !powerOfTwo(minSize)){
+            throw new IllegalArgumentException("Both total size and minimum block size must be powers of two");
+        }
         this.unsafe = OffHeapAllocator.getUnsafe();
+        this.totalSize = totalSize;
+        this.minSize = minSize;
+        this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
+        this.allocatedMap = new HashMap<>();
+        this.baseAddress = initialiseBlocks();
+    }
+
+    OffHeapBuddyAllocator(Unsafe unsafe){
+        this.unsafe = unsafe;
+        this.totalSize = 16 * 1024 * 1024;
+        this.minSize = 64;
+        this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
+        this.allocatedMap = new HashMap<>();
+        this.baseAddress = initialiseBlocks();
+    }
+
+    OffHeapBuddyAllocator( long totalSize, long minSize, Unsafe unsafe){
+        if (minSize>totalSize){
+            throw new IllegalArgumentException("Minimum block size cannot be greater than the total size");
+        }
+        if (!powerOfTwo(totalSize) || !powerOfTwo(minSize)){
+            throw new IllegalArgumentException("Both total size and minimum block size must be powers of two");
+        }
+        this.unsafe = unsafe;
         this.totalSize = totalSize;
         this.minSize = minSize;
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
@@ -75,16 +102,21 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         if (bytes > totalSize) {
             throw new IllegalArgumentException("Request exceeds total memory");
         }
+        if (bytes<=minSize) return 0;
 
         long blockSize = bytes;
-        if ((blockSize & (blockSize - 1)) != 0) {
+        if (!powerOfTwo(blockSize)) {
             blockSize = 1L << (64 - Long.numberOfLeadingZeros(blockSize));
         }
 
-        return Long.numberOfTrailingZeros(blockSize) - Long.numberOfTrailingZeros(minSize);
+        int i = Long.numberOfTrailingZeros(blockSize);
+        int j = Long.numberOfTrailingZeros(minSize);
+        int res = i - j;
+        return res;
     }
 
     public void free(long address){
+        //TODO: clean free'd blocks e.g. unsafe.setMemory(address, blockSize, (byte)0)
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
@@ -125,5 +157,9 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
         unsafe.freeMemory(baseAddress);
         closed = true;
+    }
+
+    private boolean powerOfTwo(long num){
+        return (num & (num-1)) == 0;
     }
 }
