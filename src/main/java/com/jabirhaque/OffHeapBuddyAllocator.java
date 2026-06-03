@@ -83,6 +83,9 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
+        if (bytes > totalSize){
+            throw new IllegalArgumentException("Requested size exceeds total size");
+        }
         int level = getLevel(bytes);
         long offset = (freeCounts[level] > 0) ? freeLists[level][--freeCounts[level]] : splitAndAllocate(level+1);
         allocatedMap.put(offset, level);

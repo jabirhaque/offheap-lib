@@ -127,4 +127,61 @@ public class OffHeapBuddyAllocatorTest {
 
         Assertions.assertEquals("Both total size and minimum block size must be powers of two", exception3.getMessage());
     }
+
+    @Test
+    public void freeInvalidAddres(){
+        Mockito.when(unsafeMock.allocateMemory(32)).thenReturn(100L);
+        OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(32, 4, unsafeMock);
+
+        Assertions.assertEquals(100, offHeapBuddyAllocator.allocate(16));
+        Assertions.assertEquals(116, offHeapBuddyAllocator.allocate(16));
+
+        offHeapBuddyAllocator.free(100);
+
+        Throwable exception = Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            offHeapBuddyAllocator.free(99);
+        });
+
+        offHeapBuddyAllocator.free(116);
+
+        Assertions.assertEquals("Provided address is invalid", exception.getMessage());
+    }
+
+    @Test
+    public void requestExceedsTotalSize(){
+        Mockito.when(unsafeMock.allocateMemory(32)).thenReturn(100L);
+        OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(32, 4, unsafeMock);
+
+        Throwable exception = Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            offHeapBuddyAllocator.allocate(33);
+        });
+
+        Assertions.assertEquals("Requested size exceeds total size", exception.getMessage());
+    }
+
+    @Test
+    public void closeErrors() throws NoSuchFieldException, IllegalAccessException {
+        OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(32, 16, unsafeMock);
+        offHeapBuddyAllocator.close();
+
+        Throwable exception = Assertions.assertThrows(IllegalStateException.class, () -> {
+            offHeapBuddyAllocator.allocate(16);
+        });
+        Assertions.assertEquals("Allocator closed", exception.getMessage());
+
+        exception = Assertions.assertThrows(IllegalStateException.class, () -> {
+            offHeapBuddyAllocator.free(16);
+        });
+        Assertions.assertEquals("Allocator closed", exception.getMessage());
+    }
+
+    @Test
+    public void closeWhilstAllocatedBlocks() throws NoSuchFieldException, IllegalAccessException {
+        OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(32, 16, unsafeMock);
+        offHeapBuddyAllocator.allocate(16);
+        offHeapBuddyAllocator.allocate(16);
+
+        Throwable exception = Assertions.assertThrows(IllegalStateException.class, offHeapBuddyAllocator::close);
+        Assertions.assertEquals("Cannot close allocator, blocks still allocated", exception.getMessage());
+    }
 }
