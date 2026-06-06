@@ -119,7 +119,6 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
     }
 
     public void free(long address){
-        //TODO: clean free'd blocks e.g. unsafe.setMemory(address, blockSize, (byte)0)
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
@@ -141,6 +140,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         }
         if (index == freeCounts[level]){
             freeLists[level][freeCounts[level]++] = offset;
+            unsafe.setMemory(baseAddress+offset, minSize<<level , (byte)0);
             return;
         }
         freeLists[level][index] = freeLists[level][--freeCounts[level]];
