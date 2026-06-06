@@ -184,4 +184,37 @@ public class OffHeapBuddyAllocatorTest {
         Throwable exception = Assertions.assertThrows(IllegalStateException.class, offHeapBuddyAllocator::close);
         Assertions.assertEquals("Cannot close allocator, blocks still allocated", exception.getMessage());
     }
+
+    @Test
+    public void throwsOnBlockLimit() throws NoSuchFieldException, IllegalAccessException {
+
+        Throwable exception = Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator((long)Integer.MAX_VALUE+1, 1, unsafeMock);
+        });
+        Assertions.assertEquals("Block count exceeds limit", exception.getMessage());
+    }
+
+    @Test
+    public void zeroBlockSize() throws NoSuchFieldException, IllegalAccessException {
+
+        Throwable zeroBlockException = Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(128, 0, unsafeMock);
+        });
+        Assertions.assertEquals("Total and block size must be at least one byte", zeroBlockException.getMessage());
+
+        Throwable negativeBlockException = Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(128, -1, unsafeMock);
+        });
+        Assertions.assertEquals("Total and block size must be at least one byte", negativeBlockException.getMessage());
+
+        Throwable zeroTotalSizeException = Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(0, -1, unsafeMock);
+        });
+        Assertions.assertEquals("Total and block size must be at least one byte", zeroTotalSizeException.getMessage());
+
+        Throwable negativeTotalSizeException = Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(-1, -1, unsafeMock);
+        });
+        Assertions.assertEquals("Total and block size must be at least one byte", negativeTotalSizeException.getMessage());
+    }
 }

@@ -23,12 +23,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
 
     OffHeapBuddyAllocator(long totalSize, long minSize) throws NoSuchFieldException, IllegalAccessException {
-        if (minSize>totalSize){
-            throw new IllegalArgumentException("Minimum block size cannot be greater than the total size");
-        }
-        if (!powerOfTwo(totalSize) || !powerOfTwo(minSize)){
-            throw new IllegalArgumentException("Both total size and minimum block size must be powers of two");
-        }
+        validate(totalSize, minSize);
         this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
         this.minSize = minSize;
@@ -47,18 +42,21 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
     }
 
     OffHeapBuddyAllocator( long totalSize, long minSize, Unsafe unsafe){
-        if (minSize>totalSize){
-            throw new IllegalArgumentException("Minimum block size cannot be greater than the total size");
-        }
-        if (!powerOfTwo(totalSize) || !powerOfTwo(minSize)){
-            throw new IllegalArgumentException("Both total size and minimum block size must be powers of two");
-        }
+        validate(totalSize, minSize);
         this.unsafe = unsafe;
         this.totalSize = totalSize;
         this.minSize = minSize;
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
         this.allocatedMap = new HashMap<>();
         this.baseAddress = initialiseBlocks();
+    }
+
+    private void validate(long totalSize, long minSize){
+        if (minSize>totalSize) throw new IllegalArgumentException("Minimum block size cannot be greater than the total size");
+        if (totalSize <= 0 | minSize <= 0) throw new IllegalArgumentException("Total and block size must be at least one byte");
+        if (!powerOfTwo(totalSize) || !powerOfTwo(minSize)) throw new IllegalArgumentException("Both total size and minimum block size must be powers of two");
+        long count = totalSize / minSize;
+        if (count > Integer.MAX_VALUE) throw new IllegalArgumentException("Block count exceeds limit");
     }
 
     private long initialiseBlocks() {
