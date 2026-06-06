@@ -19,9 +19,6 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     private int top;
 
     public OffHeapSlabAllocator(long totalSize, long blockSize) throws NoSuchFieldException, IllegalAccessException {
-        if (blockSize>totalSize){
-            throw new IllegalArgumentException("Block size cannot be greater than total size");
-        }
         this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = blockSize;
@@ -30,9 +27,6 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     }
 
     public OffHeapSlabAllocator(long totalSize) throws NoSuchFieldException, IllegalAccessException {
-        if (64>totalSize){
-            throw new IllegalArgumentException("Block size cannot be greater than total size");
-        }
         this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = 64;
@@ -57,9 +51,6 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     }
 
     public OffHeapSlabAllocator(long totalSize, long blockSize, Unsafe unsafe){
-        if (blockSize>totalSize){
-            throw new IllegalArgumentException("Block size cannot be greater than total size");
-        }
         this.unsafe = unsafe;
         this.totalSize = totalSize;
         this.blockSize = blockSize;
@@ -68,6 +59,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     }
 
     private int validateAndReturnCount(){
+        if (blockSize>totalSize) throw new IllegalArgumentException("Block size cannot be greater than total size");
         if (totalSize <= 0 | blockSize <= 0) throw new IllegalArgumentException("Total and block size must be at least one byte");
         long count = totalSize / blockSize;
         if (count > Integer.MAX_VALUE) throw new IllegalArgumentException("Block count exceeds limit");
