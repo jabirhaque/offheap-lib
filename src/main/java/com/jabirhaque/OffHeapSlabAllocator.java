@@ -27,33 +27,6 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         initialiseBlocks();
     }
 
-    public OffHeapSlabAllocator(long totalSize) throws NoSuchFieldException, IllegalAccessException {
-        this.unsafe = OffHeapAllocator.getUnsafe();
-        this.totalSize = totalSize;
-        this.blockSize = 64;
-        this.blockCount = validateAndReturnCount();
-        this.baseAddress = unsafe.allocateMemory(totalSize);
-        initialiseBlocks();
-    }
-
-    public OffHeapSlabAllocator() throws NoSuchFieldException, IllegalAccessException {
-        this.unsafe = OffHeapAllocator.getUnsafe();
-        this.totalSize = 16 * 1024 * 1024;
-        this.blockSize = 64;
-        this.blockCount = validateAndReturnCount();
-        this.baseAddress = unsafe.allocateMemory(totalSize);
-        initialiseBlocks();
-    }
-
-    public OffHeapSlabAllocator(Unsafe unsafe){
-        this.unsafe = unsafe;
-        this.totalSize = 16 * 1024 * 1024;
-        this.blockSize = 64;
-        this.blockCount = validateAndReturnCount();
-        this.baseAddress = unsafe.allocateMemory(totalSize);
-        initialiseBlocks();
-    }
-
     public OffHeapSlabAllocator(long totalSize, long blockSize, Unsafe unsafe){
         this.unsafe = unsafe;
         this.totalSize = totalSize;
@@ -97,14 +70,14 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         return allocateBlock();
     }
 
-    private long allocateBlock(){
+    private synchronized long allocateBlock(){
         if (top < 0) throw new OutOfMemoryError("Out of blocks");
         int index = freeBlocks[top--];
         allocatedSet[index] = true;
         return baseAddress+index*blockSize;
     }
 
-    public void free(long address){
+    public synchronized void free(long address){
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
@@ -116,7 +89,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         freeBlocks[++top] = index;
     }
 
-    public void close(){
+    public synchronized void close(){
         if (closed) return;
 
         if (top != blockCount-1){

@@ -22,7 +22,7 @@ public class OffHeapSlabAllocatorTest {
     public void testStandardAllocation() throws NoSuchFieldException, IllegalAccessException {
         Mockito.when(unsafeMock.allocateMemory(16 * 1024 * 1024)).thenReturn(100L);
 
-        OffHeapSlabAllocator offHeapSlabAllocator = new OffHeapSlabAllocator(unsafeMock);
+        OffHeapSlabAllocator offHeapSlabAllocator = new OffHeapSlabAllocator(16 * 1024 * 1024, 64, unsafeMock);
 
         List<Long> expected = new ArrayList<>();
         for (long i=100; i < 100 + 16*1024*1024; i+=64){

@@ -5,18 +5,27 @@ import sun.misc.Unsafe;
 public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
 
     private OffHeapSlabAllocator[] offHeapAllocators;
+
     private final Unsafe unsafe;
     private final long totalSize;
     private final long blockSize;
     private final long baseAddress;
     private final int allocatorCount;
 
+    private boolean closed = false;
+
     public ConcurrentOffHeapSlabAllocator(long totalSize, long blockSize, int allocatorCount) throws NoSuchFieldException, IllegalAccessException {
         this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
-        this.blockSize = blockSize; //TODO: ensure power of two
+        this.blockSize = blockSize;
         this.baseAddress = unsafe.allocateMemory(totalSize);
         this.allocatorCount = allocatorCount;
+        initiateAllocators();
+    }
+
+    private void validateInputs(){
+        if (totalSize < allocatorCount) throw new IllegalArgumentException("Total size must be greater than allocator count");
+        if (allocatorCount <= 0) throw new IllegalArgumentException("Allocator count must be at least one");
     }
 
     private void initiateAllocators(){
@@ -30,6 +39,9 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
 
     @Override
     public long allocate(long bytes) {
+        if (closed){
+            throw new IllegalStateException("Allocator closed");
+        }
         int index = (int)Thread.currentThread().getId()%allocatorCount;
         OffHeapSlabAllocator allocator = offHeapAllocators[index];
         return allocator.allocate(bytes);
@@ -37,6 +49,10 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
 
     @Override
     public void free(long address) {
+        if (closed){
+            throw new IllegalStateException("Allocator closed");
+        }
+        if (!owns(address)) throw new IllegalArgumentException("Provided address is invalid");
         int index = (int)(address-baseAddress)%allocatorCount;
         OffHeapSlabAllocator allocator = offHeapAllocators[index];
         allocator.free(address);
@@ -50,6 +66,9 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
 
     @Override
     public void close() throws Exception {
-
+        if (closed) return;
+        for (OffHeapSlabAllocator allocator: offHeapAllocators) allocator.close();
+        unsafe.freeMemory(baseAddress);
+        closed = true;
     }
 }
