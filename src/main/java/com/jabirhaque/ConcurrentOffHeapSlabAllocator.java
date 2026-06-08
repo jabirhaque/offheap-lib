@@ -43,7 +43,7 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
-        int index = (int)(Thread.currentThread().getId()%allocatorCount);
+        int index = (int)(Thread.currentThread().getId()%allocatorCount); //TODO: investigate
         OffHeapSlabAllocator allocator = offHeapAllocators[index];
         return allocator.allocate(bytes);
     }
@@ -68,12 +68,12 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
     }
 
     @Override
-    public synchronized void close() throws Exception {
+    public void close() throws Exception {
         if (closed) return;
         for (OffHeapSlabAllocator allocator: offHeapAllocators){
             if (allocator.allocated()) throw new IllegalStateException("Cannot close allocator, blocks still allocated");
         }
-        unsafe.freeMemory(baseAddress);
         closed = true;
+        unsafe.freeMemory(baseAddress);
     }
 }

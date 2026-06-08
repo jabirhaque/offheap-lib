@@ -60,7 +60,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         top = blockCount-1;
     }
 
-    public long allocate(long bytes){
+    public synchronized long allocate(long bytes){
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
@@ -96,8 +96,8 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
             throw new IllegalStateException("Cannot close allocator: " + (blockCount - top - 1) + " blocks still allocated");
         }
 
-        unsafe.freeMemory(baseAddress);
         closed = true;
+        unsafe.freeMemory(baseAddress);
     }
 
     public boolean allocated(){
