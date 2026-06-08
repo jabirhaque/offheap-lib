@@ -2,6 +2,8 @@ package com.jabirhaque;
 
 import sun.misc.Unsafe;
 
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
 
     private OffHeapSlabAllocator[] offHeapAllocators;
@@ -12,7 +14,8 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
     private final long baseAddress;
     private final int allocatorCount;
 
-    private boolean closed = false;
+    private boolean closed = false; //TODO: make atomic
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     public ConcurrentOffHeapSlabAllocator(long totalSize, long blockSize, int allocatorCount) throws NoSuchFieldException, IllegalAccessException {
         this.unsafe = OffHeapAllocator.getUnsafe();
@@ -40,24 +43,34 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
 
     @Override
     public long allocate(long bytes) {
-        if (closed){
-            throw new IllegalStateException("Allocator closed");
+        lock.readLock().lock();
+        try{
+            if (closed){
+                throw new IllegalStateException("Allocator closed");
+            }
+            int index = (int)(Thread.currentThread().getId()%allocatorCount); //TODO: investigate
+            OffHeapSlabAllocator allocator = offHeapAllocators[index];
+            return allocator.allocate(bytes);
+        }finally{
+            lock.readLock().unlock();
         }
-        int index = (int)(Thread.currentThread().getId()%allocatorCount); //TODO: investigate
-        OffHeapSlabAllocator allocator = offHeapAllocators[index];
-        return allocator.allocate(bytes);
     }
 
     @Override
     public void free(long address) {
-        if (closed){
-            throw new IllegalStateException("Allocator closed");
+        lock.readLock().lock();
+        try{
+            if (closed){
+                throw new IllegalStateException("Allocator closed");
+            }
+            if (!owns(address)) throw new IllegalArgumentException("Provided address is invalid");
+            long allocatorSize = totalSize/allocatorCount;
+            int index = (int)((address-baseAddress)/allocatorSize);
+            OffHeapSlabAllocator allocator = offHeapAllocators[index];
+            allocator.free(address);
+        }finally{
+            lock.readLock().unlock();
         }
-        if (!owns(address)) throw new IllegalArgumentException("Provided address is invalid");
-        long allocatorSize = totalSize/allocatorCount;
-        int index = (int)((address-baseAddress)/allocatorSize);
-        OffHeapSlabAllocator allocator = offHeapAllocators[index];
-        allocator.free(address);
     }
 
     @Override
@@ -69,11 +82,16 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
 
     @Override
     public void close() throws Exception {
-        if (closed) return;
-        for (OffHeapSlabAllocator allocator: offHeapAllocators){
-            if (allocator.allocated()) throw new IllegalStateException("Cannot close allocator, blocks still allocated");
+        lock.writeLock().lock();
+        try{
+            if (closed) return;
+            for (OffHeapSlabAllocator allocator: offHeapAllocators){
+                if (allocator.allocated()) throw new IllegalStateException("Cannot close allocator, blocks still allocated");
+            }
+            closed = true;
+            unsafe.freeMemory(baseAddress);
+        }finally{
+            lock.writeLock().unlock();
         }
-        closed = true;
-        unsafe.freeMemory(baseAddress);
     }
 }
