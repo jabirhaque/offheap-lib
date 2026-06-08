@@ -14,7 +14,7 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
     private final long baseAddress;
     private final int allocatorCount;
 
-    private boolean closed = false; //TODO: make atomic
+    private boolean closed = false;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     public ConcurrentOffHeapSlabAllocator(long totalSize, long blockSize, int allocatorCount) throws NoSuchFieldException, IllegalAccessException {
@@ -24,7 +24,12 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
         this.allocatorCount = allocatorCount;
         validateInputs();
         this.baseAddress = unsafe.allocateMemory(totalSize);
-        initiateAllocators();
+        try{
+            initiateAllocators();
+        }catch (Exception e){
+            unsafe.freeMemory(this.baseAddress);
+            throw new IllegalStateException("Failed to initiate allocators", e);
+        }
     }
 
     private void validateInputs(){
@@ -48,7 +53,7 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
             if (closed){
                 throw new IllegalStateException("Allocator closed");
             }
-            int index = (int)(Thread.currentThread().getId()%allocatorCount); //TODO: investigate
+            int index = Math.floorMod(Long.hashCode(Thread.currentThread().getId()), allocatorCount);
             OffHeapSlabAllocator allocator = offHeapAllocators[index];
             return allocator.allocate(bytes);
         }finally{
@@ -87,6 +92,9 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
             if (closed) return;
             for (OffHeapSlabAllocator allocator: offHeapAllocators){
                 if (allocator.allocated()) throw new IllegalStateException("Cannot close allocator, blocks still allocated");
+            }
+            for (OffHeapSlabAllocator allocator: offHeapAllocators){
+                allocator.close();
             }
             closed = true;
             unsafe.freeMemory(baseAddress);

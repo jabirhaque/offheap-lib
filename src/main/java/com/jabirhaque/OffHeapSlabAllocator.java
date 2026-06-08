@@ -60,6 +60,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         top = blockCount-1;
     }
 
+    @Override
     public synchronized long allocate(long bytes){
         if (closed){
             throw new IllegalStateException("Allocator closed");
@@ -70,13 +71,14 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         return allocateBlock();
     }
 
-    private synchronized long allocateBlock(){
+    private long allocateBlock(){
         if (top < 0) throw new OutOfMemoryError("Out of blocks");
         int index = freeBlocks[top--];
         allocatedSet[index] = true;
         return baseAddress+index*blockSize;
     }
 
+    @Override
     public synchronized void free(long address){
         if (closed){
             throw new IllegalStateException("Allocator closed");
@@ -89,6 +91,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         freeBlocks[++top] = index;
     }
 
+    @Override
     public synchronized void close(){
         if (closed) return;
 
@@ -110,6 +113,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         System.out.println("Page size: " + unsafe.pageSize());
     }
 
+    @Override
     public boolean owns(long address){
         return (address >= baseAddress && address < baseAddress+totalSize && (address-baseAddress)%blockSize == 0);
     }
