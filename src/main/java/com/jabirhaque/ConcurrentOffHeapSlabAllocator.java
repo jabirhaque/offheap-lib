@@ -18,8 +18,9 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
         this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = blockSize;
-        this.baseAddress = unsafe.allocateMemory(totalSize);
         this.allocatorCount = allocatorCount;
+        validateInputs();
+        this.baseAddress = unsafe.allocateMemory(totalSize);
         initiateAllocators();
     }
 
@@ -28,7 +29,7 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
         if (allocatorCount <= 0) throw new IllegalArgumentException("Allocator count must be at least one");
     }
 
-    private void initiateAllocators(){
+    private void initiateAllocators() throws NoSuchFieldException, IllegalAccessException {
         long allocatorSize = totalSize/allocatorCount;
         offHeapAllocators = new OffHeapSlabAllocator[allocatorCount];
         for (int i=0; i<allocatorCount; i++){
@@ -42,7 +43,7 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
-        int index = (int)Thread.currentThread().getId()%allocatorCount;
+        int index = (int)(Thread.currentThread().getId()%allocatorCount);
         OffHeapSlabAllocator allocator = offHeapAllocators[index];
         return allocator.allocate(bytes);
     }
@@ -53,21 +54,25 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
             throw new IllegalStateException("Allocator closed");
         }
         if (!owns(address)) throw new IllegalArgumentException("Provided address is invalid");
-        int index = (int)(address-baseAddress)%allocatorCount;
+        long allocatorSize = totalSize/allocatorCount;
+        int index = (int)((address-baseAddress)/allocatorSize);
         OffHeapSlabAllocator allocator = offHeapAllocators[index];
         allocator.free(address);
     }
 
     @Override
     public boolean owns(long address) {
-        int index = (int)(address-baseAddress)%allocatorCount;
+        long allocatorSize = totalSize/allocatorCount;
+        int index = (int)((address-baseAddress)/allocatorSize);
         return index>=0 && index<allocatorCount && offHeapAllocators[index].owns(address);
     }
 
     @Override
-    public void close() throws Exception {
+    public synchronized void close() throws Exception {
         if (closed) return;
-        for (OffHeapSlabAllocator allocator: offHeapAllocators) allocator.close();
+        for (OffHeapSlabAllocator allocator: offHeapAllocators){
+            if (allocator.allocated()) throw new IllegalStateException("Cannot close allocator, blocks still allocated");
+        }
         unsafe.freeMemory(baseAddress);
         closed = true;
     }

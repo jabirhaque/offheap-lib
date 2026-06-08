@@ -36,8 +36,8 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         initialiseBlocks();
     }
 
-    public OffHeapSlabAllocator(long baseAddress, long totalSize, long blockSize){
-        this.unsafe = null;
+    public OffHeapSlabAllocator(long baseAddress, long totalSize, long blockSize) throws NoSuchFieldException, IllegalAccessException {
+        this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
         this.blockSize = blockSize;
         this.blockCount = validateAndReturnCount();
@@ -47,7 +47,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
 
     private int validateAndReturnCount(){
         if (blockSize>totalSize) throw new IllegalArgumentException("Block size cannot be greater than total size");
-        if (totalSize <= 0 | blockSize <= 0) throw new IllegalArgumentException("Total and block size must be at least one byte");
+        if (totalSize <= 0 || blockSize <= 0) throw new IllegalArgumentException("Total and block size must be at least one byte");
         long count = totalSize / blockSize;
         if (count > Integer.MAX_VALUE) throw new IllegalArgumentException("Block count exceeds limit");
         return (int)count;
@@ -92,12 +92,16 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     public synchronized void close(){
         if (closed) return;
 
-        if (top != blockCount-1){
+        if (allocated()){
             throw new IllegalStateException("Cannot close allocator: " + (blockCount - top - 1) + " blocks still allocated");
         }
 
         unsafe.freeMemory(baseAddress);
         closed = true;
+    }
+
+    public boolean allocated(){
+        return top != blockCount-1;
     }
     
 
