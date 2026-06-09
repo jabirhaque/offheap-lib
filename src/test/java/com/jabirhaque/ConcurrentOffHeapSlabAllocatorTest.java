@@ -148,4 +148,14 @@ public class ConcurrentOffHeapSlabAllocatorTest {
         Throwable exception = Assertions.assertThrows(IllegalStateException.class, () -> concurrentOffHeapSlabAllocator.allocate(64));
         Assertions.assertEquals("Allocator closed", exception.getMessage());
     }
+
+    @Test
+    public void testInvalidFree() throws NoSuchFieldException, IllegalAccessException {
+        Mockito.when(unsafeMock.allocateMemory(16)).thenReturn(0L);
+
+        ConcurrentOffHeapSlabAllocator concurrentOffHeapSlabAllocator = new ConcurrentOffHeapSlabAllocator(16, 4, 2, unsafeMock);
+
+        Throwable exception = Assertions.assertThrows(IllegalArgumentException.class, () -> concurrentOffHeapSlabAllocator.free(3));
+        Assertions.assertEquals("Provided address is invalid", exception.getMessage());
+    }
 }
