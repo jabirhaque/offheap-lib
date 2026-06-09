@@ -32,6 +32,21 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
         }
     }
 
+    public ConcurrentOffHeapSlabAllocator(long totalSize, long blockSize, int allocatorCount, Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+        this.unsafe = unsafe;
+        this.totalSize = totalSize;
+        this.blockSize = blockSize;
+        this.allocatorCount = allocatorCount;
+        validateInputs();
+        this.baseAddress = unsafe.allocateMemory(totalSize);
+        try{
+            initiateAllocators();
+        }catch (Exception e){
+            unsafe.freeMemory(this.baseAddress);
+            throw new IllegalStateException("Failed to initiate allocators", e);
+        }
+    }
+
     private void validateInputs(){
         if (totalSize < allocatorCount) throw new IllegalArgumentException("Total size must be greater than allocator count");
         if (allocatorCount <= 0) throw new IllegalArgumentException("Allocator count must be at least one");
