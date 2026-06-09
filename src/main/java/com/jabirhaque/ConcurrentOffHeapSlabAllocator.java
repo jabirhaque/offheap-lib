@@ -56,7 +56,7 @@ public class ConcurrentOffHeapSlabAllocator implements OffHeapAllocator{
         long allocatorSize = totalSize/allocatorCount;
         offHeapAllocators = new OffHeapSlabAllocator[allocatorCount];
         for (int i=0; i<allocatorCount; i++){
-            offHeapAllocators[i] = new OffHeapSlabAllocator(baseAddress+i*allocatorSize, allocatorSize, blockSize);
+            offHeapAllocators[i] = new OffHeapSlabAllocator(baseAddress+i*allocatorSize, allocatorSize, blockSize, unsafe);
         }
     }
 

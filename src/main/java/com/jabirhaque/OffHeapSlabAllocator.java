@@ -36,8 +36,8 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         initialiseBlocks();
     }
 
-    public OffHeapSlabAllocator(long baseAddress, long totalSize, long blockSize) throws NoSuchFieldException, IllegalAccessException {
-        this.unsafe = OffHeapAllocator.getUnsafe();
+    public OffHeapSlabAllocator(long baseAddress, long totalSize, long blockSize, Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+        this.unsafe = unsafe;
         this.totalSize = totalSize;
         this.blockSize = blockSize;
         this.blockCount = validateAndReturnCount();
