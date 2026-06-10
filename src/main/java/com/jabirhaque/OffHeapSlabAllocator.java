@@ -83,12 +83,18 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
-        if (!owns(address)) throw new IllegalArgumentException("Provided address is invalid");
+        if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
         int index = (int)((address-baseAddress)/blockSize);
-        if (!allocatedSet[index]) throw new IllegalArgumentException("Provided address is already free");
         unsafe.setMemory(address, blockSize, (byte)0);
         allocatedSet[index] = false;
         freeBlocks[++top] = index;
+    }
+
+    private boolean validateAddress(long address){
+        long offset = address - baseAddress;
+        if (offset%blockSize != 0) return false;
+        int index = (int)(offset/blockSize);
+        return index>=0 && index<blockCount && allocatedSet[index];
     }
 
     @Override
@@ -111,10 +117,5 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     public void printInfo(){
         System.out.println("Address size: " + unsafe.addressSize());
         System.out.println("Page size: " + unsafe.pageSize());
-    }
-
-    @Override
-    public boolean owns(long address){
-        return (address >= baseAddress && address < baseAddress+totalSize && (address-baseAddress)%blockSize == 0);
     }
 }

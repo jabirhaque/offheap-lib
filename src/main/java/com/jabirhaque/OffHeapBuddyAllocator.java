@@ -77,7 +77,8 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         freeCounts[levels - 1] = 1;
     }
 
-    public long allocate(long bytes){
+    @Override
+    public synchronized long allocate(long bytes){
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
@@ -116,12 +117,13 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         return res;
     }
 
-    public void free(long address){
+    @Override
+    public synchronized void free(long address){
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
+        if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
         long offset = address-baseAddress;
-        if (!owns(address)) throw new IllegalArgumentException("Provided address is invalid");
         int level = allocatedMap.get(offset);
         allocatedMap.remove(offset);
         mergeAndFree(offset, level);
@@ -145,11 +147,12 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         mergeAndFree(Math.min(offset, buddyOffset), level+1);
     }
 
-    public boolean owns(long address){
+    private boolean validateAddress(long address){
         return allocatedMap.containsKey(address-baseAddress);
     }
 
-    public void close(){
+    @Override
+    public synchronized void close(){
         if (closed) return;
 
         if (freeCounts[levels-1] == 0){

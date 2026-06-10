@@ -82,7 +82,7 @@ public class ConcurrentOffHeapBuddyAllocator implements OffHeapAllocator{
             if (closed){
                 throw new IllegalStateException("Allocator closed");
             }
-            if (!owns(address)) throw new IllegalArgumentException("Provided address is invalid");
+            if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
             long allocatorSize = totalSize/allocatorCount;
             int index = (int)((address-baseAddress)/allocatorSize);
             OffHeapBuddyAllocator allocator = offHeapAllocators[index];
@@ -92,11 +92,10 @@ public class ConcurrentOffHeapBuddyAllocator implements OffHeapAllocator{
         }
     }
 
-    @Override
-    public boolean owns(long address) {
+    private boolean validateAddress(long address){
         long allocatorSize = totalSize/allocatorCount;
         int index = (int)((address-baseAddress)/allocatorSize);
-        return index>=0 && index<allocatorCount && offHeapAllocators[index].owns(address);
+        return index>=0 && index<allocatorCount;
     }
 
     @Override
