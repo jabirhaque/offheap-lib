@@ -42,6 +42,38 @@ public class ConcurrentOffHeapBuddyAllocatorTest {
     }
 
     @Test
+    public void testOrderMaintained() throws NoSuchFieldException, IllegalAccessException {
+        Mockito.when(unsafeMock.allocateMemory(16 * 1024 * 1024)).thenReturn(100L);
+
+        ConcurrentOffHeapBuddyAllocator concurrentOffHeapBuddyAllocator = new ConcurrentOffHeapBuddyAllocator(16 * 1024 * 1024, 64, 1, unsafeMock);
+
+        Assertions.assertEquals(100, concurrentOffHeapBuddyAllocator.allocate(4 * 1024 * 1024));
+        Assertions.assertEquals(100 + 8 * 1024 * 1024, concurrentOffHeapBuddyAllocator.allocate(8 * 1024 * 1024));
+        Assertions.assertEquals(100 + 4 * 1024 * 1024, concurrentOffHeapBuddyAllocator.allocate(4 * 1024 * 1024));
+
+        concurrentOffHeapBuddyAllocator.free(100);
+        concurrentOffHeapBuddyAllocator.free(100 + 4 * 1024 * 1024);
+
+        Assertions.assertEquals(100, concurrentOffHeapBuddyAllocator.allocate(8 * 1024 * 1024));
+
+        concurrentOffHeapBuddyAllocator.free(100);
+        concurrentOffHeapBuddyAllocator.free(100 + 8 * 1024 * 1024);
+
+        Assertions.assertEquals(100, concurrentOffHeapBuddyAllocator.allocate(16 * 1024 * 1024));
+        concurrentOffHeapBuddyAllocator.free(100);
+
+        Assertions.assertEquals(100, concurrentOffHeapBuddyAllocator.allocate(4 * 1024 * 1024));
+        Assertions.assertEquals(100 + 4 * 1024 * 1024, concurrentOffHeapBuddyAllocator.allocate(4 * 1024 * 1024));
+        Assertions.assertEquals(100 + 8 * 1024 * 1024, concurrentOffHeapBuddyAllocator.allocate(4 * 1024 * 1024));
+        Assertions.assertEquals(100 + 12 * 1024 * 1024, concurrentOffHeapBuddyAllocator.allocate(4 * 1024 * 1024));
+
+        concurrentOffHeapBuddyAllocator.free(100);
+        concurrentOffHeapBuddyAllocator.free(100 + 8 * 1024 * 1024);
+
+        Assertions.assertEquals(100 + 8 * 1024 * 1024, concurrentOffHeapBuddyAllocator.allocate(4 * 1024 * 1024));
+    }
+
+    @Test
     public void testStandardAllocationCountForMultipleAllocators() throws NoSuchFieldException, IllegalAccessException {
         Mockito.when(unsafeMock.allocateMemory(16 * 1024 * 1024)).thenReturn(100L);
 
