@@ -29,26 +29,30 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         this.minSize = minSize;
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
         this.allocatedMap = new HashMap<>();
-        this.baseAddress = initialiseBlocks();
+        this.baseAddress = unsafe.allocateMemory(totalSize);
+        initialiseBlocks();
     }
 
-    OffHeapBuddyAllocator(Unsafe unsafe){
-        this.unsafe = unsafe;
-        this.totalSize = 16 * 1024 * 1024;
-        this.minSize = 64;
-        this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
-        this.allocatedMap = new HashMap<>();
-        this.baseAddress = initialiseBlocks();
-    }
-
-    OffHeapBuddyAllocator( long totalSize, long minSize, Unsafe unsafe){
+    OffHeapBuddyAllocator(long totalSize, long minSize, Unsafe unsafe){
         validate(totalSize, minSize);
         this.unsafe = unsafe;
         this.totalSize = totalSize;
         this.minSize = minSize;
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
         this.allocatedMap = new HashMap<>();
-        this.baseAddress = initialiseBlocks();
+        this.baseAddress = unsafe.allocateMemory(totalSize);
+        initialiseBlocks();
+    }
+
+    OffHeapBuddyAllocator(long baseAddress, long totalSize, long minSize, Unsafe unsafe){
+        validate(totalSize, minSize);
+        this.unsafe = unsafe;
+        this.totalSize = totalSize;
+        this.minSize = minSize;
+        this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
+        this.allocatedMap = new HashMap<>();
+        this.baseAddress = baseAddress;
+        initialiseBlocks();
     }
 
     private void validate(long totalSize, long minSize){
@@ -59,9 +63,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         if (count > Integer.MAX_VALUE) throw new IllegalArgumentException("Block count exceeds limit");
     }
 
-    private long initialiseBlocks() {
-        long address = unsafe.allocateMemory(totalSize);
-
+    private void initialiseBlocks() {
         freeLists = new long[levels][];
         freeCounts = new int[levels];
 
@@ -73,11 +75,10 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
         freeLists[levels - 1][0] = 0;
         freeCounts[levels - 1] = 1;
-
-        return address;
     }
 
-    public long allocate(long bytes){
+    @Override
+    public synchronized long allocate(long bytes){
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
@@ -116,12 +117,13 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         return res;
     }
 
-    public void free(long address){
+    @Override
+    public synchronized void free(long address){
         if (closed){
             throw new IllegalStateException("Allocator closed");
         }
+        if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
         long offset = address-baseAddress;
-        if (!owns(address)) throw new IllegalArgumentException("Provided address is invalid");
         int level = allocatedMap.get(offset);
         allocatedMap.remove(offset);
         mergeAndFree(offset, level);
@@ -145,11 +147,12 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         mergeAndFree(Math.min(offset, buddyOffset), level+1);
     }
 
-    public boolean owns(long address){
+    private boolean validateAddress(long address){
         return allocatedMap.containsKey(address-baseAddress);
     }
 
-    public void close(){
+    @Override
+    public synchronized void close(){
         if (closed) return;
 
         if (freeCounts[levels-1] == 0){
@@ -158,6 +161,10 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
         unsafe.freeMemory(baseAddress);
         closed = true;
+    }
+
+    public boolean allocated(){
+        return freeCounts[levels-1] == 0;
     }
 
     private boolean powerOfTwo(long num){

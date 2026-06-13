@@ -22,7 +22,7 @@ public class OffHeapBuddyAllocatorTest {
     public void testStandardAllocation() throws NoSuchFieldException, IllegalAccessException {
         Mockito.when(unsafeMock.allocateMemory(16 * 1024 * 1024)).thenReturn(100L);
 
-        OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(unsafeMock);
+        OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(16 * 1024 * 1024, 64, unsafeMock);
 
         List<Long> expected = new ArrayList<>();
         for (long i = 100; i < 100 + 16 * 1024 * 1024; i += 64) {
@@ -47,7 +47,7 @@ public class OffHeapBuddyAllocatorTest {
     public void testOrderMaintained(){
         Mockito.when(unsafeMock.allocateMemory(16 * 1024 * 1024)).thenReturn(100L);
 
-        OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(unsafeMock);
+        OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(16 * 1024 * 1024, 64, unsafeMock);
 
         Assertions.assertEquals(100, offHeapBuddyAllocator.allocate(4 * 1024 * 1024));
         Assertions.assertEquals(100 + 8 * 1024 * 1024, offHeapBuddyAllocator.allocate(8 * 1024 * 1024));
