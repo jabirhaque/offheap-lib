@@ -170,4 +170,16 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
     private boolean powerOfTwo(long num){
         return (num & (num-1)) == 0;
     }
+
+    public synchronized void writeInt(long address, long offset, int value) {
+        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > (minSize<<allocatedMap.get(address-baseAddress)))
+            throw new IllegalArgumentException("Address invalid");
+        unsafe.putInt(address+offset, value);
+    }
+
+    public synchronized int readInt(long address, long offset){
+        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > (minSize<<allocatedMap.get(address-baseAddress)))
+            throw new IllegalArgumentException("Address invalid");
+        return unsafe.getInt(address+offset);
+    }
 }
