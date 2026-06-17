@@ -217,4 +217,17 @@ public class OffHeapBuddyAllocatorTest {
         });
         Assertions.assertEquals("Total and block size must be at least one byte", negativeTotalSizeException.getMessage());
     }
+
+    @Test
+    public void readWriteIntTest(){
+        Mockito.when(unsafeMock.allocateMemory(128)).thenReturn(0L);
+        Mockito.when(unsafeMock.getInt(0)).thenReturn(1);
+        Mockito.when(unsafeMock.getInt(4)).thenReturn(2);
+        OffHeapBuddyAllocator offHeapBuddyAllocator = new OffHeapBuddyAllocator(128, 16, unsafeMock);
+        Assertions.assertEquals(0, offHeapBuddyAllocator.allocate(16));
+        offHeapBuddyAllocator.writeInt(0, 0, 1);
+        offHeapBuddyAllocator.writeInt(0, 4, 2);
+        Assertions.assertEquals(1, offHeapBuddyAllocator.readInt(0, 0));
+        Assertions.assertEquals(2, offHeapBuddyAllocator.readInt(0, 4));
+    }
 }

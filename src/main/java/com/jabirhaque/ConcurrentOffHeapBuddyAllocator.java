@@ -98,6 +98,38 @@ public class ConcurrentOffHeapBuddyAllocator implements OffHeapAllocator{
         return index>=0 && index<allocatorCount;
     }
 
+    public void writeInt(long address, long offset, int val){
+        lock.readLock().lock();
+        try{
+            if (closed){
+                throw new IllegalStateException("Allocator closed");
+            }
+            if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
+            long allocatorSize = totalSize/allocatorCount;
+            int index = (int)((address-baseAddress)/allocatorSize);
+            OffHeapBuddyAllocator allocator = offHeapAllocators[index];
+            allocator.writeInt(address, offset, val);
+        }finally{
+            lock.readLock().unlock();
+        }
+    }
+
+    public int readInt(long address, long offset){
+        lock.readLock().lock();
+        try{
+            if (closed){
+                throw new IllegalStateException("Allocator closed");
+            }
+            if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
+            long allocatorSize = totalSize/allocatorCount;
+            int index = (int)((address-baseAddress)/allocatorSize);
+            OffHeapBuddyAllocator allocator = offHeapAllocators[index];
+            return allocator.readInt(address, offset);
+        }finally{
+            lock.readLock().unlock();
+        }
+    }
+
     @Override
     public void close() throws Exception {
         lock.writeLock().lock();

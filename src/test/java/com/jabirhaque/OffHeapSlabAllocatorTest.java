@@ -169,4 +169,17 @@ public class OffHeapSlabAllocatorTest {
         });
         Assertions.assertEquals("Total and block size must be at least one byte", negativeTotalSizeException.getMessage());
     }
+
+    @Test
+    public void readWriteIntTest(){
+        Mockito.when(unsafeMock.allocateMemory(128)).thenReturn(0L);
+        Mockito.when(unsafeMock.getInt(128-16)).thenReturn(1);
+        Mockito.when(unsafeMock.getInt(128-16+4)).thenReturn(2);
+        OffHeapSlabAllocator offHeapSlabAllocator = new OffHeapSlabAllocator(128, 16, unsafeMock);
+        Assertions.assertEquals(128-16, offHeapSlabAllocator.allocate(16));
+        offHeapSlabAllocator.writeInt(128-16, 0, 1);
+        offHeapSlabAllocator.writeInt(128-16, 4, 2);
+        Assertions.assertEquals(1, offHeapSlabAllocator.readInt(128-16, 0));
+        Assertions.assertEquals(2, offHeapSlabAllocator.readInt(128-16, 4));
+    }
 }

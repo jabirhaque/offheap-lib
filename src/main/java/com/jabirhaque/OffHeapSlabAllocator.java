@@ -118,4 +118,16 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         System.out.println("Address size: " + unsafe.addressSize());
         System.out.println("Page size: " + unsafe.pageSize());
     }
+
+    public synchronized void writeInt(long address, long offset, int value) {
+        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > blockSize)
+            throw new IllegalArgumentException("Address invalid");
+        unsafe.putInt(address+offset, value);
+    }
+
+    public synchronized int readInt(long address, long offset){
+        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > blockSize)
+            throw new IllegalArgumentException("Address invalid");
+        return unsafe.getInt(address+offset);
+    }
 }
