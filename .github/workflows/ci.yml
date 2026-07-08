@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build Test and Benchmark
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build and Test with Maven
+    name: Build, Test and Benchmark
     runs-on: ubuntu-latest
 
     steps:
@@ -27,3 +27,13 @@ jobs:
 
       - name: Package application
         run: mvn package
+
+      - name: Build benchmark project
+        if: github.ref == 'refs/heads/main'
+        working-directory: benchmarks
+        run: mvn clean install
+
+      - name: Run benchmark JAR
+        if: github.ref == 'refs/heads/main'
+        working-directory: benchmarks
+        run: java -jar target/benchmarks.jar -bm avgt -tu ns
