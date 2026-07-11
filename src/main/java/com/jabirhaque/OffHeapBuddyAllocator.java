@@ -88,6 +88,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         int level = getLevel(bytes);
         long offset = (freeCounts[level] > 0) ? freeLists[level][--freeCounts[level]] : splitAndAllocate(level+1);
         allocatedMap.put(offset, level);
+        unsafe.setMemory(baseAddress+offset, minSize<<level , (byte)0);
         return baseAddress+offset;
     }
 
@@ -140,7 +141,6 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         }
         if (index == freeCounts[level]){
             freeLists[level][freeCounts[level]++] = offset;
-            unsafe.setMemory(baseAddress+offset, minSize<<level , (byte)0);
             return;
         }
         freeLists[level][index] = freeLists[level][--freeCounts[level]];
