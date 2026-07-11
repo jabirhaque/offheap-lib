@@ -7,7 +7,7 @@ This project is a simple **Java Off Heap Memory Management Library** ideal for l
 - Buddy allocator for variable-size memory allocation with efficient block splitting and merging to minimise fragmentation
 - Concurrent slab allocator with sharded allocation pools to improve scalability and reduce contention in multi-threaded fixed-size workloads
 - Concurrent buddy allocator supporting thread-safe variable-size allocations with independent allocator instances for improved parallel performance
-- JMH benchmarking with slab allocator achieving 30 ns allocations and 40 ns frees, while
+- JMH benchmarking with slab allocator achieving 36 ns allocations and 43 ns frees, while
   buddy allocator achieved 112 ns allocations and 109 ns frees
 
 | Benchmark      | Mode | Cnt | Score (ns/op) | Error (ns/op) |
