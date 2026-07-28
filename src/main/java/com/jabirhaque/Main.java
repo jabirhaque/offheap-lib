@@ -15,5 +15,8 @@ public class Main {
         end = System.nanoTime();
         duration = end - start;
         System.out.println("free() took " + duration + " ns");
+
+        AllocationStatistics allocationStatistics = new AllocationStatistics();
+        System.out.println(allocationStatistics.toString());
     }
 }
