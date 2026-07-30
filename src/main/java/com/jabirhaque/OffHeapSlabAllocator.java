@@ -1,5 +1,6 @@
 package com.jabirhaque;
 
+import lombok.Getter;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
@@ -18,6 +19,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     private boolean[] allocatedSet;
     private int top;
 
+    @Getter
     private final AllocationStatistics allocationStatistics = new AllocationStatistics();
 
     public OffHeapSlabAllocator(long totalSize, long blockSize) throws NoSuchFieldException, IllegalAccessException {

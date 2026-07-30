@@ -1,5 +1,6 @@
 package com.jabirhaque;
 
+import lombok.Getter;
 import sun.misc.Unsafe;
 
 import java.util.HashMap;
@@ -20,7 +21,8 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     private Map<Long, Integer> allocatedMap;
 
-
+    @Getter
+    private final AllocationStatistics allocationStatistics = new AllocationStatistics();
 
     OffHeapBuddyAllocator(long totalSize, long minSize) throws NoSuchFieldException, IllegalAccessException {
         validate(totalSize, minSize);
@@ -79,17 +81,23 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     @Override
     public synchronized long allocate(long bytes){
-        if (closed){
-            throw new IllegalStateException("Allocator closed");
+        try{
+            if (closed){
+                throw new IllegalStateException("Allocator closed");
+            }
+            if (bytes > totalSize){
+                throw new IllegalArgumentException("Requested size exceeds total size");
+            }
+            int level = getLevel(bytes);
+            long offset = (freeCounts[level] > 0) ? freeLists[level][--freeCounts[level]] : splitAndAllocate(level+1);
+            allocatedMap.put(offset, level);
+            unsafe.setMemory(baseAddress+offset, minSize<<level , (byte)0);
+            updateAllocatedStatisticsOnAllocation(minSize<<level);
+            return baseAddress+offset;
+        } catch (Exception e){
+            allocationStatistics.setFailedAllocations(allocationStatistics.getFailedAllocations()+1);
+            throw e;
         }
-        if (bytes > totalSize){
-            throw new IllegalArgumentException("Requested size exceeds total size");
-        }
-        int level = getLevel(bytes);
-        long offset = (freeCounts[level] > 0) ? freeLists[level][--freeCounts[level]] : splitAndAllocate(level+1);
-        allocatedMap.put(offset, level);
-        unsafe.setMemory(baseAddress+offset, minSize<<level , (byte)0);
-        return baseAddress+offset;
     }
 
     private long splitAndAllocate(int level){
@@ -118,6 +126,14 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         return res;
     }
 
+    private void updateAllocatedStatisticsOnAllocation(long blockSize){
+        allocationStatistics.setAllocations(allocationStatistics.getAllocations()+1);
+        allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()+1);
+        allocationStatistics.setPeakAllocations(Math.max(allocationStatistics.getActiveAllocations(), allocationStatistics.getPeakAllocations()));
+        allocationStatistics.setByteAllocated(allocationStatistics.getByteAllocated()+blockSize);
+        allocationStatistics.setPeakBytesAllocated(Math.max(allocationStatistics.getByteAllocated(), allocationStatistics.getPeakBytesAllocated()));
+    }
+
     @Override
     public synchronized void free(long address){
         if (closed){
@@ -128,6 +144,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         int level = allocatedMap.get(offset);
         allocatedMap.remove(offset);
         mergeAndFree(offset, level);
+        updateAllocatedStatisticsOnFree(minSize<<level);
     }
 
     private void mergeAndFree(long offset, int level){
@@ -149,6 +166,12 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     private boolean validateAddress(long address){
         return allocatedMap.containsKey(address-baseAddress);
+    }
+
+    private void updateAllocatedStatisticsOnFree(long blockSize){
+        allocationStatistics.setFrees(allocationStatistics.getFrees()+1);
+        allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()-1);
+        allocationStatistics.setByteAllocated(allocationStatistics.getByteAllocated()-blockSize);
     }
 
     @Override
