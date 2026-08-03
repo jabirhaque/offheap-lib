@@ -1,6 +1,5 @@
 package com.jabirhaque;
 
-import lombok.Getter;
 import sun.misc.Unsafe;
 
 import java.util.HashMap;
@@ -21,7 +20,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     private Map<Long, Integer> allocatedMap;
 
-    private final AllocationStatistics allocationStatistics = new AllocationStatistics();
+    private final AllocationStatistics allocationStatistics;
 
     OffHeapBuddyAllocator(long totalSize, long minSize) throws NoSuchFieldException, IllegalAccessException {
         validate(totalSize, minSize);
@@ -31,6 +30,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
         this.allocatedMap = new HashMap<>();
         this.baseAddress = unsafe.allocateMemory(totalSize);
+        this.allocationStatistics = new AllocationStatistics(totalSize);
         initialiseBlocks();
     }
 
@@ -42,6 +42,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
         this.allocatedMap = new HashMap<>();
         this.baseAddress = unsafe.allocateMemory(totalSize);
+        this.allocationStatistics = new AllocationStatistics(totalSize);
         initialiseBlocks();
     }
 
@@ -53,6 +54,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
         this.allocatedMap = new HashMap<>();
         this.baseAddress = baseAddress;
+        this.allocationStatistics = new AllocationStatistics(totalSize);
         initialiseBlocks();
     }
 
@@ -128,7 +130,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
     private void updateAllocatedStatisticsOnAllocation(long blockSize){
         allocationStatistics.setAllocations(allocationStatistics.getAllocations()+1);
         allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()+1);
-        allocationStatistics.setByteAllocated(allocationStatistics.getByteAllocated()+blockSize);
+        allocationStatistics.setBytesAllocated(allocationStatistics.getBytesAllocated()+blockSize);
     }
 
     @Override
@@ -168,7 +170,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
     private void updateAllocatedStatisticsOnFree(long blockSize){
         allocationStatistics.setFrees(allocationStatistics.getFrees()+1);
         allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()-1);
-        allocationStatistics.setByteAllocated(allocationStatistics.getByteAllocated()-blockSize);
+        allocationStatistics.setBytesAllocated(allocationStatistics.getBytesAllocated()-blockSize);
     }
 
     @Override
@@ -205,11 +207,12 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     public synchronized AllocationStatistics getAllocationStatisticsSnapshot(){
         return new AllocationStatistics(
+                totalSize,
                 allocationStatistics.getAllocations(),
                 allocationStatistics.getFrees(),
                 allocationStatistics.getActiveAllocations(),
                 allocationStatistics.getFailedAllocations(),
-                allocationStatistics.getByteAllocated()
+                allocationStatistics.getBytesAllocated()
         );
     }
 }

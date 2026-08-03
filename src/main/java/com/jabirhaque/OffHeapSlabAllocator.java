@@ -1,9 +1,6 @@
 package com.jabirhaque;
 
-import lombok.Getter;
 import sun.misc.Unsafe;
-
-import java.lang.reflect.Field;
 
 public class OffHeapSlabAllocator implements OffHeapAllocator{
 
@@ -19,7 +16,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     private boolean[] allocatedSet;
     private int top;
 
-    private final AllocationStatistics allocationStatistics = new AllocationStatistics();
+    private final AllocationStatistics allocationStatistics;
 
     public OffHeapSlabAllocator(long totalSize, long blockSize) throws NoSuchFieldException, IllegalAccessException {
         this.unsafe = OffHeapAllocator.getUnsafe();
@@ -27,6 +24,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         this.blockSize = blockSize;
         this.blockCount = validateAndReturnCount();
         this.baseAddress = unsafe.allocateMemory(totalSize);
+        this.allocationStatistics = new AllocationStatistics(totalSize);
         initialiseBlocks();
     }
 
@@ -36,6 +34,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         this.blockSize = blockSize;
         this.blockCount = validateAndReturnCount();
         this.baseAddress = unsafe.allocateMemory(totalSize);
+        this.allocationStatistics = new AllocationStatistics(totalSize);
         initialiseBlocks();
     }
 
@@ -45,6 +44,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         this.blockSize = blockSize;
         this.blockCount = validateAndReturnCount();
         this.baseAddress = baseAddress;
+        this.allocationStatistics = new AllocationStatistics(totalSize);
         initialiseBlocks();
     }
 
@@ -91,7 +91,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     private void updateAllocatedStatisticsOnAllocation(){
         allocationStatistics.setAllocations(allocationStatistics.getAllocations()+1);
         allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()+1);
-        allocationStatistics.setByteAllocated(allocationStatistics.getByteAllocated()+blockSize);
+        allocationStatistics.setBytesAllocated(allocationStatistics.getBytesAllocated()+blockSize);
     }
 
     @Override
@@ -117,7 +117,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     private void updateAllocatedStatisticsOnFree(){
         allocationStatistics.setFrees(allocationStatistics.getFrees()+1);
         allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()-1);
-        allocationStatistics.setByteAllocated(allocationStatistics.getByteAllocated()-blockSize);
+        allocationStatistics.setBytesAllocated(allocationStatistics.getBytesAllocated()-blockSize);
     }
 
     @Override
@@ -156,11 +156,12 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
 
     public synchronized AllocationStatistics getAllocationStatisticsSnapshot(){
         return new AllocationStatistics(
+                totalSize,
                 allocationStatistics.getAllocations(),
                 allocationStatistics.getFrees(),
                 allocationStatistics.getActiveAllocations(),
                 allocationStatistics.getFailedAllocations(),
-                allocationStatistics.getByteAllocated()
+                allocationStatistics.getBytesAllocated()
                 );
     }
 }
