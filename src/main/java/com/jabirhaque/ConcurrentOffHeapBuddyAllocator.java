@@ -144,4 +144,22 @@ public class ConcurrentOffHeapBuddyAllocator implements OffHeapAllocator{
             lock.writeLock().unlock();
         }
     }
+
+    public AllocationStatistics getAllocationStatisticsSnapshot(){
+        lock.readLock().lock();
+        try{
+            AllocationStatistics allocationStatisticsSnapshot = new AllocationStatistics();
+            for (OffHeapBuddyAllocator allocator: offHeapAllocators){
+                AllocationStatistics allocationStatistics = allocator.getAllocationStatisticsSnapshot();
+                allocationStatisticsSnapshot.setAllocations(allocationStatisticsSnapshot.getAllocations()+allocationStatistics.getAllocations());
+                allocationStatisticsSnapshot.setFrees(allocationStatisticsSnapshot.getFrees()+allocationStatistics.getFrees());
+                allocationStatisticsSnapshot.setActiveAllocations(allocationStatisticsSnapshot.getActiveAllocations()+allocationStatistics.getActiveAllocations());
+                allocationStatisticsSnapshot.setFailedAllocations(allocationStatisticsSnapshot.getFailedAllocations()+allocationStatistics.getFailedAllocations());
+                allocationStatisticsSnapshot.setByteAllocated(allocationStatisticsSnapshot.getByteAllocated()+allocationStatistics.getByteAllocated());
+            }
+            return allocationStatisticsSnapshot;
+        }finally{
+            lock.readLock().unlock();
+        }
+    }
 }

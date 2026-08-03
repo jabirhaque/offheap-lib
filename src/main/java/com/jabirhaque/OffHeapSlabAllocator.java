@@ -19,7 +19,6 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     private boolean[] allocatedSet;
     private int top;
 
-    @Getter
     private final AllocationStatistics allocationStatistics = new AllocationStatistics();
 
     public OffHeapSlabAllocator(long totalSize, long blockSize) throws NoSuchFieldException, IllegalAccessException {
@@ -92,9 +91,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     private void updateAllocatedStatisticsOnAllocation(){
         allocationStatistics.setAllocations(allocationStatistics.getAllocations()+1);
         allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()+1);
-        allocationStatistics.setPeakAllocations(Math.max(allocationStatistics.getActiveAllocations(), allocationStatistics.getPeakAllocations()));
         allocationStatistics.setByteAllocated(allocationStatistics.getByteAllocated()+blockSize);
-        allocationStatistics.setPeakBytesAllocated(Math.max(allocationStatistics.getByteAllocated(), allocationStatistics.getPeakBytesAllocated()));
     }
 
     @Override
@@ -155,5 +152,15 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > blockSize)
             throw new IllegalArgumentException("Address invalid");
         return unsafe.getInt(address+offset);
+    }
+
+    public synchronized AllocationStatistics getAllocationStatisticsSnapshot(){
+        return new AllocationStatistics(
+                allocationStatistics.getAllocations(),
+                allocationStatistics.getFrees(),
+                allocationStatistics.getActiveAllocations(),
+                allocationStatistics.getFailedAllocations(),
+                allocationStatistics.getByteAllocated()
+                );
     }
 }
