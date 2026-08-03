@@ -20,7 +20,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     private Map<Long, Integer> allocatedMap;
 
-
+    private final AllocationStatistics allocationStatistics;
 
     OffHeapBuddyAllocator(long totalSize, long minSize) throws NoSuchFieldException, IllegalAccessException {
         validate(totalSize, minSize);
@@ -30,6 +30,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
         this.allocatedMap = new HashMap<>();
         this.baseAddress = unsafe.allocateMemory(totalSize);
+        this.allocationStatistics = new AllocationStatistics(totalSize);
         initialiseBlocks();
     }
 
@@ -41,6 +42,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
         this.allocatedMap = new HashMap<>();
         this.baseAddress = unsafe.allocateMemory(totalSize);
+        this.allocationStatistics = new AllocationStatistics(totalSize);
         initialiseBlocks();
     }
 
@@ -52,6 +54,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         this.levels = (int)(Math.log(totalSize/minSize)/Math.log(2))+1;
         this.allocatedMap = new HashMap<>();
         this.baseAddress = baseAddress;
+        this.allocationStatistics = new AllocationStatistics(totalSize);
         initialiseBlocks();
     }
 
@@ -79,17 +82,23 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     @Override
     public synchronized long allocate(long bytes){
-        if (closed){
-            throw new IllegalStateException("Allocator closed");
+        try{
+            if (closed){
+                throw new IllegalStateException("Allocator closed");
+            }
+            if (bytes > totalSize){
+                throw new IllegalArgumentException("Requested size exceeds total size");
+            }
+            int level = getLevel(bytes);
+            long offset = (freeCounts[level] > 0) ? freeLists[level][--freeCounts[level]] : splitAndAllocate(level+1);
+            allocatedMap.put(offset, level);
+            unsafe.setMemory(baseAddress+offset, minSize<<level , (byte)0);
+            updateAllocatedStatisticsOnAllocation(minSize<<level);
+            return baseAddress+offset;
+        } catch (Exception e){
+            allocationStatistics.setFailedAllocations(allocationStatistics.getFailedAllocations()+1);
+            throw e;
         }
-        if (bytes > totalSize){
-            throw new IllegalArgumentException("Requested size exceeds total size");
-        }
-        int level = getLevel(bytes);
-        long offset = (freeCounts[level] > 0) ? freeLists[level][--freeCounts[level]] : splitAndAllocate(level+1);
-        allocatedMap.put(offset, level);
-        unsafe.setMemory(baseAddress+offset, minSize<<level , (byte)0);
-        return baseAddress+offset;
     }
 
     private long splitAndAllocate(int level){
@@ -118,6 +127,12 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         return res;
     }
 
+    private void updateAllocatedStatisticsOnAllocation(long blockSize){
+        allocationStatistics.setAllocations(allocationStatistics.getAllocations()+1);
+        allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()+1);
+        allocationStatistics.setBytesAllocated(allocationStatistics.getBytesAllocated()+blockSize);
+    }
+
     @Override
     public synchronized void free(long address){
         if (closed){
@@ -128,6 +143,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         int level = allocatedMap.get(offset);
         allocatedMap.remove(offset);
         mergeAndFree(offset, level);
+        updateAllocatedStatisticsOnFree(minSize<<level);
     }
 
     private void mergeAndFree(long offset, int level){
@@ -149,6 +165,12 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     private boolean validateAddress(long address){
         return allocatedMap.containsKey(address-baseAddress);
+    }
+
+    private void updateAllocatedStatisticsOnFree(long blockSize){
+        allocationStatistics.setFrees(allocationStatistics.getFrees()+1);
+        allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()-1);
+        allocationStatistics.setBytesAllocated(allocationStatistics.getBytesAllocated()-blockSize);
     }
 
     @Override
@@ -181,5 +203,16 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > (minSize<<allocatedMap.get(address-baseAddress)))
             throw new IllegalArgumentException("Address invalid");
         return unsafe.getInt(address+offset);
+    }
+
+    public synchronized AllocationStatistics getAllocationStatisticsSnapshot(){
+        return new AllocationStatistics(
+                totalSize,
+                allocationStatistics.getAllocations(),
+                allocationStatistics.getFrees(),
+                allocationStatistics.getActiveAllocations(),
+                allocationStatistics.getFailedAllocations(),
+                allocationStatistics.getBytesAllocated()
+        );
     }
 }

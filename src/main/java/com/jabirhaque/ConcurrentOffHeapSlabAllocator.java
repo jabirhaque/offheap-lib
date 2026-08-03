@@ -145,4 +145,22 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
             lock.writeLock().unlock();
         }
     }
+
+    public AllocationStatistics getAllocationStatisticsSnapshot(){
+        lock.readLock().lock();
+        try{
+            AllocationStatistics allocationStatisticsSnapshot = new AllocationStatistics(totalSize);
+            for (OffHeapSlabAllocator allocator: offHeapAllocators){
+                AllocationStatistics allocationStatistics = allocator.getAllocationStatisticsSnapshot();
+                allocationStatisticsSnapshot.setAllocations(allocationStatisticsSnapshot.getAllocations()+allocationStatistics.getAllocations());
+                allocationStatisticsSnapshot.setFrees(allocationStatisticsSnapshot.getFrees()+allocationStatistics.getFrees());
+                allocationStatisticsSnapshot.setActiveAllocations(allocationStatisticsSnapshot.getActiveAllocations()+allocationStatistics.getActiveAllocations());
+                allocationStatisticsSnapshot.setFailedAllocations(allocationStatisticsSnapshot.getFailedAllocations()+allocationStatistics.getFailedAllocations());
+                allocationStatisticsSnapshot.setBytesAllocated(allocationStatisticsSnapshot.getBytesAllocated()+allocationStatistics.getBytesAllocated());
+            }
+            return allocationStatisticsSnapshot;
+        }finally{
+            lock.readLock().unlock();
+        }
+    }
 }
