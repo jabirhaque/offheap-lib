@@ -7,6 +7,7 @@ import java.lang.reflect.Field;
 public interface OffHeapAllocator extends AutoCloseable{
     long allocate(long bytes);
     void free(long address);
+    AllocationStatistics getAllocationStatisticsSnapshot();
 
     static Unsafe getUnsafe() throws NoSuchFieldException, IllegalAccessException {
         Field f = Unsafe.class.getDeclaredField("theUnsafe");

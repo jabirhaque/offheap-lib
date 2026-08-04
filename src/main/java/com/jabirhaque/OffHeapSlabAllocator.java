@@ -154,6 +154,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         return unsafe.getInt(address+offset);
     }
 
+    @Override
     public synchronized AllocationStatistics getAllocationStatisticsSnapshot(){
         return new AllocationStatistics(
                 totalSize,

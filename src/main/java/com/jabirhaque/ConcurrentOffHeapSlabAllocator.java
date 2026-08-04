@@ -146,6 +146,7 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
         }
     }
 
+    @Override
     public AllocationStatistics getAllocationStatisticsSnapshot(){
         lock.readLock().lock();
         try{

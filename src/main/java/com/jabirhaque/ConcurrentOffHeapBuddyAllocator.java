@@ -145,6 +145,7 @@ public class ConcurrentOffHeapBuddyAllocator implements OffHeapAllocator{
         }
     }
 
+    @Override
     public AllocationStatistics getAllocationStatisticsSnapshot(){
         lock.readLock().lock();
         try{
