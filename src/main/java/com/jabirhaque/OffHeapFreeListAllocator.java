@@ -30,6 +30,24 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
         initialiseBlocks();
     }
 
+    public OffHeapFreeListAllocator(long totalSize, long minSize, Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+        this.unsafe = unsafe;
+        this.totalSize = totalSize;
+        this.minSize = minSize;
+        this.baseAddress = unsafe.allocateMemory(totalSize);
+        this.allocationStatistics = new AllocationStatistics(totalSize);
+        initialiseBlocks();
+    }
+
+    public OffHeapFreeListAllocator(long totalSize, long minSize, Unsafe unsafe, long baseAddress) throws NoSuchFieldException, IllegalAccessException {
+        this.unsafe = unsafe;
+        this.totalSize = totalSize;
+        this.minSize = minSize;
+        this.baseAddress = baseAddress;
+        this.allocationStatistics = new AllocationStatistics(totalSize);
+        initialiseBlocks();
+    }
+
     private void initialiseBlocks(){
         unsafe.putLong(baseAddress + MAGIC_OFFSET, MAGIC);
         unsafe.putLong(baseAddress + FREE_OFFSET, (byte) 1);
@@ -150,6 +168,20 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
 
     public boolean allocated(){
         return unsafe.getByte(baseAddress + FREE_OFFSET) == 0 || unsafe.getLong(baseAddress + NEXT_OFFSET) == baseAddress + totalSize;
+    }
+
+    public synchronized void writeInt(long address, long offset, int value) {
+        if (!validateAddress(address)) throw new IllegalArgumentException("Address invalid");
+        long size = unsafe.getLong(address - HEADER_SIZE + SIZE_OFFSET);
+        if (offset < 0 || offset + Integer.BYTES > size) throw new IllegalArgumentException("Address invalid");
+        unsafe.putInt(address+offset, value);
+    }
+
+    public synchronized int readInt(long address, long offset){
+        if (!validateAddress(address)) throw new IllegalArgumentException("Address invalid");
+        long size = unsafe.getLong(address - HEADER_SIZE + SIZE_OFFSET);
+        if (offset < 0 || offset + Integer.BYTES > size) throw new IllegalArgumentException("Address invalid");
+        return unsafe.getInt(address+offset);
     }
 
     @Override
