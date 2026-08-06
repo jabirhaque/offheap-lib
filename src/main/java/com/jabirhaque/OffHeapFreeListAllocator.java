@@ -27,11 +27,23 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
         this.minSize = minSize;
         this.baseAddress = unsafe.allocateMemory(totalSize);
         this.allocationStatistics = new AllocationStatistics(totalSize);
+        initialiseBlocks();
+    }
+
+    private void initialiseBlocks(){
+        unsafe.putLong(baseAddress + MAGIC_OFFSET, MAGIC);
+        unsafe.putLong(baseAddress + FREE_OFFSET, (byte) 1);
+        unsafe.putLong(baseAddress + SIZE_OFFSET, totalSize - HEADER_SIZE);
+        unsafe.putLong(baseAddress + PREV_OFFSET, -1);
+        unsafe.putLong(baseAddress + NEXT_OFFSET, baseAddress + totalSize);
     }
 
     @Override
-    public long allocate(long bytes){
-
+    public synchronized long allocate(long bytes){
+        if (closed){
+            throw new IllegalStateException("Allocator closed");
+        }
+        if (bytes <= 0) throw new IllegalArgumentException("Requested size must be positive");
         long current = baseAddress;
         while (current < baseAddress + totalSize && (unsafe.getByte(current + FREE_OFFSET) == 0 || unsafe.getLong(current + SIZE_OFFSET) < bytes)){
             current = unsafe.getLong(current + NEXT_OFFSET);
@@ -58,7 +70,10 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
     }
 
     @Override
-    public void free(long address){
+    public synchronized void free(long address){
+        if (closed){
+            throw new IllegalStateException("Allocator closed");
+        }
         if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
         long header = address - HEADER_SIZE;
         unsafe.putByte(header + FREE_OFFSET, (byte) 1);
@@ -102,7 +117,19 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
     }
 
     @Override
-    public void close(){
+    public synchronized void close(){
+        if (closed) return;
+
+        if (allocated()){
+            throw new IllegalStateException("Cannot close allocator, blocks still allocated");
+        }
+
+        closed = true;
+        unsafe.freeMemory(baseAddress);
+    }
+
+    public boolean allocated(){
+        return unsafe.getByte(baseAddress + FREE_OFFSET) == 0 || unsafe.getLong(baseAddress + NEXT_OFFSET) == baseAddress + totalSize;
     }
 
     @Override
