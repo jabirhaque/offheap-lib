@@ -94,7 +94,7 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
             }
             updateAllocatedStatisticsOnAllocation(HEADER_SIZE + unsafe.getLong(current + SIZE_OFFSET));
             return current + HEADER_SIZE;
-        }catch (Exception e){
+        }catch (Throwable e){
             allocationStatistics.setFailedAllocations(allocationStatistics.getFailedAllocations()+1);
             throw e;
         }

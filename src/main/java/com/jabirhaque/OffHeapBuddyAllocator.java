@@ -95,7 +95,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
             unsafe.setMemory(baseAddress+offset, minSize<<level , (byte)0);
             updateAllocatedStatisticsOnAllocation(minSize<<level);
             return baseAddress+offset;
-        } catch (Exception e){
+        } catch (Throwable e){
             allocationStatistics.setFailedAllocations(allocationStatistics.getFailedAllocations()+1);
             throw e;
         }

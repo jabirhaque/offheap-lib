@@ -75,7 +75,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
             long address = allocateBlock();
             updateAllocatedStatisticsOnAllocation();
             return address;
-        }catch(Exception e){
+        }catch(Throwable e){
             allocationStatistics.setFailedAllocations(allocationStatistics.getFailedAllocations()+1);
             throw e;
         }
