@@ -177,7 +177,7 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
     public synchronized void close(){
         if (closed) return;
 
-        if (freeCounts[levels-1] == 0){
+        if (allocated()){
             throw new IllegalStateException("Cannot close allocator, blocks still allocated");
         }
 
@@ -194,13 +194,13 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
     }
 
     public synchronized void writeInt(long address, long offset, int value) {
-        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > (minSize<<allocatedMap.get(address-baseAddress)))
+        if (!validateAddress(address) || offset < 0 || offset  > (minSize<<allocatedMap.get(address-baseAddress)) - Integer.BYTES)
             throw new IllegalArgumentException("Address invalid");
         unsafe.putInt(address+offset, value);
     }
 
     public synchronized int readInt(long address, long offset){
-        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > (minSize<<allocatedMap.get(address-baseAddress)))
+        if (!validateAddress(address) || offset < 0 || offset > (minSize<<allocatedMap.get(address-baseAddress)) - Integer.BYTES)
             throw new IllegalArgumentException("Address invalid");
         return unsafe.getInt(address+offset);
     }

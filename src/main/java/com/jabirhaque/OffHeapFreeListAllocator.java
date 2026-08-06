@@ -22,6 +22,8 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
     private final AllocationStatistics allocationStatistics;
 
     public OffHeapFreeListAllocator(long totalSize, long minSize) throws NoSuchFieldException, IllegalAccessException {
+        if (totalSize < HEADER_SIZE) throw new IllegalArgumentException("Total size cannot be less than header size: " + HEADER_SIZE);
+        if (totalSize < minSize) throw new IllegalArgumentException("Total size cannot be less than minimum size");
         this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
         this.minSize = minSize;
@@ -31,6 +33,8 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
     }
 
     public OffHeapFreeListAllocator(long totalSize, long minSize, Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+        if (totalSize < HEADER_SIZE) throw new IllegalArgumentException("Total size cannot be less than header size: " + HEADER_SIZE);
+        if (totalSize < minSize) throw new IllegalArgumentException("Total size cannot be less than minimum size");
         this.unsafe = unsafe;
         this.totalSize = totalSize;
         this.minSize = minSize;
@@ -40,6 +44,8 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
     }
 
     public OffHeapFreeListAllocator(long totalSize, long minSize, Unsafe unsafe, long baseAddress) throws NoSuchFieldException, IllegalAccessException {
+        if (totalSize < HEADER_SIZE) throw new IllegalArgumentException("Total size cannot be less than header size: " + HEADER_SIZE);
+        if (totalSize < minSize) throw new IllegalArgumentException("Total size cannot be less than minimum size");
         this.unsafe = unsafe;
         this.totalSize = totalSize;
         this.minSize = minSize;
@@ -50,7 +56,7 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
 
     private void initialiseBlocks(){
         unsafe.putLong(baseAddress + MAGIC_OFFSET, MAGIC);
-        unsafe.putLong(baseAddress + FREE_OFFSET, (byte) 1);
+        unsafe.putByte(baseAddress + FREE_OFFSET, (byte) 1);
         unsafe.putLong(baseAddress + SIZE_OFFSET, totalSize - HEADER_SIZE);
         unsafe.putLong(baseAddress + PREV_OFFSET, -1);
         unsafe.putLong(baseAddress + NEXT_OFFSET, baseAddress + totalSize);
@@ -74,6 +80,7 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
                 long size = unsafe.getLong(current + SIZE_OFFSET);
                 long newSize = size - bytes - HEADER_SIZE;
 
+                unsafe.putLong(newHeader + MAGIC_OFFSET, MAGIC);
                 unsafe.putByte(newHeader + FREE_OFFSET, (byte) 1);
                 unsafe.putLong(newHeader + SIZE_OFFSET, newSize);
                 unsafe.putLong(newHeader + PREV_OFFSET, current);
@@ -85,7 +92,7 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
                     unsafe.putLong(unsafe.getLong(newHeader + NEXT_OFFSET) + PREV_OFFSET, newHeader);
                 }
             }
-            updateAllocatedStatisticsOnAllocation(unsafe.getLong(current + SIZE_OFFSET));
+            updateAllocatedStatisticsOnAllocation(HEADER_SIZE + unsafe.getLong(current + SIZE_OFFSET));
             return current + HEADER_SIZE;
         }catch (Exception e){
             allocationStatistics.setFailedAllocations(allocationStatistics.getFailedAllocations()+1);
@@ -113,7 +120,7 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
 
         long size = unsafe.getLong(header + SIZE_OFFSET);
 
-        updateAllocatedStatisticsOnFree(size);
+        updateAllocatedStatisticsOnFree(HEADER_SIZE + size);
 
         if (nextHeader < baseAddress + totalSize && unsafe.getByte(nextHeader + FREE_OFFSET) == 1){
             size += HEADER_SIZE + unsafe.getLong(nextHeader + SIZE_OFFSET);
@@ -167,20 +174,20 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
     }
 
     public boolean allocated(){
-        return unsafe.getByte(baseAddress + FREE_OFFSET) == 0 || unsafe.getLong(baseAddress + NEXT_OFFSET) == baseAddress + totalSize;
+        return allocationStatistics.getActiveAllocations() > 0;
     }
 
     public synchronized void writeInt(long address, long offset, int value) {
         if (!validateAddress(address)) throw new IllegalArgumentException("Address invalid");
         long size = unsafe.getLong(address - HEADER_SIZE + SIZE_OFFSET);
-        if (offset < 0 || offset + Integer.BYTES > size) throw new IllegalArgumentException("Address invalid");
+        if (offset < 0 || offset > size - Integer.BYTES) throw new IllegalArgumentException("Address invalid");
         unsafe.putInt(address+offset, value);
     }
 
     public synchronized int readInt(long address, long offset){
         if (!validateAddress(address)) throw new IllegalArgumentException("Address invalid");
         long size = unsafe.getLong(address - HEADER_SIZE + SIZE_OFFSET);
-        if (offset < 0 || offset + Integer.BYTES > size) throw new IllegalArgumentException("Address invalid");
+        if (offset < 0 || offset > size - Integer.BYTES) throw new IllegalArgumentException("Address invalid");
         return unsafe.getInt(address+offset);
     }
 

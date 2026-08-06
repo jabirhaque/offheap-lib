@@ -143,13 +143,13 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
     }
 
     public synchronized void writeInt(long address, long offset, int value) {
-        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > blockSize)
+        if (!validateAddress(address) || offset < 0 || offset > blockSize - Integer.BYTES)
             throw new IllegalArgumentException("Address invalid");
         unsafe.putInt(address+offset, value);
     }
 
     public synchronized int readInt(long address, long offset){
-        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > blockSize)
+        if (!validateAddress(address) || offset < 0 || offset > blockSize - Integer.BYTES)
             throw new IllegalArgumentException("Address invalid");
         return unsafe.getInt(address+offset);
     }
