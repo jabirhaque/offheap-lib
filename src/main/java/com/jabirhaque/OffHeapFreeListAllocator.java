@@ -40,33 +40,45 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
 
     @Override
     public synchronized long allocate(long bytes){
-        if (closed){
-            throw new IllegalStateException("Allocator closed");
-        }
-        if (bytes <= 0) throw new IllegalArgumentException("Requested size must be positive");
-        long current = baseAddress;
-        while (current < baseAddress + totalSize && (unsafe.getByte(current + FREE_OFFSET) == 0 || unsafe.getLong(current + SIZE_OFFSET) < bytes)){
-            current = unsafe.getLong(current + NEXT_OFFSET);
-        }
-        if (current >= baseAddress + totalSize) throw new OutOfMemoryError("No blocks fit request");
-        unsafe.putByte(current + FREE_OFFSET, (byte) 0);
-        if (unsafe.getLong(current + SIZE_OFFSET) >= bytes + HEADER_SIZE + minSize){
-            long newHeader = current + HEADER_SIZE + bytes;
-            long size = unsafe.getLong(current + SIZE_OFFSET);
-            long newSize = size - bytes - HEADER_SIZE;
-
-            unsafe.putByte(newHeader + FREE_OFFSET, (byte) 1);
-            unsafe.putLong(newHeader + SIZE_OFFSET, newSize);
-            unsafe.putLong(newHeader + PREV_OFFSET, current);
-            unsafe.putLong(newHeader + NEXT_OFFSET, unsafe.getLong(current + NEXT_OFFSET));
-
-            unsafe.putLong(current + SIZE_OFFSET, bytes);
-            unsafe.putLong(current + NEXT_OFFSET, newHeader);
-            if (unsafe.getLong(newHeader + NEXT_OFFSET) < baseAddress + totalSize){
-                unsafe.putLong(unsafe.getLong(newHeader + NEXT_OFFSET) + PREV_OFFSET, newHeader);
+        try{
+            if (closed){
+                throw new IllegalStateException("Allocator closed");
             }
+            if (bytes <= 0) throw new IllegalArgumentException("Requested size must be positive");
+            long current = baseAddress;
+            while (current < baseAddress + totalSize && (unsafe.getByte(current + FREE_OFFSET) == 0 || unsafe.getLong(current + SIZE_OFFSET) < bytes)){
+                current = unsafe.getLong(current + NEXT_OFFSET);
+            }
+            if (current >= baseAddress + totalSize) throw new OutOfMemoryError("No blocks fit request");
+            unsafe.putByte(current + FREE_OFFSET, (byte) 0);
+            if (unsafe.getLong(current + SIZE_OFFSET) >= bytes + HEADER_SIZE + minSize){
+                long newHeader = current + HEADER_SIZE + bytes;
+                long size = unsafe.getLong(current + SIZE_OFFSET);
+                long newSize = size - bytes - HEADER_SIZE;
+
+                unsafe.putByte(newHeader + FREE_OFFSET, (byte) 1);
+                unsafe.putLong(newHeader + SIZE_OFFSET, newSize);
+                unsafe.putLong(newHeader + PREV_OFFSET, current);
+                unsafe.putLong(newHeader + NEXT_OFFSET, unsafe.getLong(current + NEXT_OFFSET));
+
+                unsafe.putLong(current + SIZE_OFFSET, bytes);
+                unsafe.putLong(current + NEXT_OFFSET, newHeader);
+                if (unsafe.getLong(newHeader + NEXT_OFFSET) < baseAddress + totalSize){
+                    unsafe.putLong(unsafe.getLong(newHeader + NEXT_OFFSET) + PREV_OFFSET, newHeader);
+                }
+            }
+            updateAllocatedStatisticsOnAllocation(unsafe.getLong(current + SIZE_OFFSET));
+            return current + HEADER_SIZE;
+        }catch (Exception e){
+            allocationStatistics.setFailedAllocations(allocationStatistics.getFailedAllocations()+1);
+            throw e;
         }
-        return current + HEADER_SIZE;
+    }
+
+    private void updateAllocatedStatisticsOnAllocation(long blockSize){
+        allocationStatistics.setAllocations(allocationStatistics.getAllocations()+1);
+        allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()+1);
+        allocationStatistics.setBytesAllocated(allocationStatistics.getBytesAllocated()+blockSize);
     }
 
     @Override
@@ -82,6 +94,8 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
         long nextHeader = unsafe.getLong(header + NEXT_OFFSET);
 
         long size = unsafe.getLong(header + SIZE_OFFSET);
+
+        updateAllocatedStatisticsOnFree(size);
 
         if (nextHeader < baseAddress + totalSize && unsafe.getByte(nextHeader + FREE_OFFSET) == 1){
             size += HEADER_SIZE + unsafe.getLong(nextHeader + SIZE_OFFSET);
@@ -116,6 +130,12 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
         return true;
     }
 
+    private void updateAllocatedStatisticsOnFree(long blockSize){
+        allocationStatistics.setFrees(allocationStatistics.getFrees()+1);
+        allocationStatistics.setActiveAllocations(allocationStatistics.getActiveAllocations()-1);
+        allocationStatistics.setBytesAllocated(allocationStatistics.getBytesAllocated()-blockSize);
+    }
+
     @Override
     public synchronized void close(){
         if (closed) return;
@@ -133,7 +153,14 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
     }
 
     @Override
-    public AllocationStatistics getAllocationStatisticsSnapshot(){
-        return new AllocationStatistics(0);
+    public synchronized AllocationStatistics getAllocationStatisticsSnapshot(){
+        return new AllocationStatistics(
+                totalSize,
+                allocationStatistics.getAllocations(),
+                allocationStatistics.getFrees(),
+                allocationStatistics.getActiveAllocations(),
+                allocationStatistics.getFailedAllocations(),
+                allocationStatistics.getBytesAllocated()
+        );
     }
 }
