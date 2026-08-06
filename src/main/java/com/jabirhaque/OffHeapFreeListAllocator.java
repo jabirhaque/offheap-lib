@@ -25,24 +25,34 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
 
     @Override
     public long allocate(long bytes){
+        long freeOffset = 0;
+        long sizeOffset = Byte.BYTES;
+        long prevOffset = Byte.BYTES + Long.BYTES;
+        long nextOffset = Byte.BYTES + 2*Long.BYTES;
+        long headerSize = Byte.BYTES + 3*Long.BYTES;
         long current = baseAddress;
-        while (current < baseAddress + totalSize && (unsafe.getByte(current) == 0 || unsafe.getLong(current + Byte.BYTES) < bytes)){
-            current = unsafe.getLong(current + Byte.BYTES + 2*Long.BYTES);
+        while (current < baseAddress + totalSize && (unsafe.getByte(current + freeOffset) == 0 || unsafe.getLong(current + sizeOffset) < bytes)){
+            current = unsafe.getLong(current + nextOffset);
         }
         if (current >= baseAddress + totalSize) throw new OutOfMemoryError("No blocks fit request");
-        unsafe.putByte(current, (byte) 0);
-        if (unsafe.getLong(current + Byte.BYTES) >= bytes + (Byte.BYTES+3*Long.BYTES) + minSize){
-            unsafe.putByte(current + Byte.BYTES + 3*Long.BYTES + bytes, (byte) 1);
-            unsafe.putLong(current + 2*Byte.BYTES + 3*Long.BYTES + bytes, unsafe.getLong(current + Byte.BYTES) - bytes - (Byte.BYTES + 3*Long.BYTES));
-            unsafe.putLong(current + 2*Byte.BYTES + 4*Long.BYTES + bytes, current);
-            unsafe.putLong(current + 2*Byte.BYTES + 5*Long.BYTES + bytes, unsafe.getLong(current + Byte.BYTES + 2*Long.BYTES));
+        unsafe.putByte(current + freeOffset, (byte) 0);
+        if (unsafe.getLong(current + sizeOffset) >= bytes + headerSize + minSize){
+            long newHeader = current + headerSize + bytes;
+            long size = unsafe.getLong(current + sizeOffset);
+            long newSize = size - bytes - headerSize;
 
-            unsafe.putLong(current + Byte.BYTES + 2*Long.BYTES, current + Byte.BYTES + 3*Long.BYTES + bytes);
-            if (unsafe.getLong(current + 2*Byte.BYTES + 5*Long.BYTES + bytes) < baseAddress + totalSize){
-                unsafe.putLong(unsafe.getLong(current + 2*Byte.BYTES + 5*Long.BYTES + bytes) + Byte.BYTES + Long.BYTES, current + Byte.BYTES + 3*Long.BYTES + bytes);
+            unsafe.putByte(newHeader + freeOffset, (byte) 1);
+            unsafe.putLong(newHeader + sizeOffset, newSize);
+            unsafe.putLong(newHeader + prevOffset, current);
+            unsafe.putLong(newHeader + nextOffset, unsafe.getLong(current + nextOffset));
+
+            unsafe.putLong(current + sizeOffset, bytes);
+            unsafe.putLong(current + nextOffset, newHeader);
+            if (unsafe.getLong(newHeader + nextOffset) < baseAddress + totalSize){
+                unsafe.putLong(unsafe.getLong(newHeader + nextOffset) + prevOffset, newHeader);
             }
         }
-        return current + Byte.BYTES + 3*Long.BYTES;
+        return current + headerSize;
     }
 
     @Override
