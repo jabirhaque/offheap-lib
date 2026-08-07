@@ -176,6 +176,95 @@ public class MyBenchmark {
         }
     }
 
+    @State(Scope.Thread)
+    public static class FreeListFreeState {
+
+        long totalSize = 16 * 1024 * 1024;
+        long minSize = 64;
+        int blockCount = (int)(totalSize/minSize);
+
+        OffHeapFreeListAllocator allocator;
+        long address;
+
+        List<Long> addresses = new ArrayList<>();
+
+        @Setup(Level.Trial)
+        public void setup() throws NoSuchFieldException, IllegalAccessException {
+            allocator = new OffHeapFreeListAllocator(totalSize, minSize);
+
+            int allocatedCount = (int) (Math.random() * (blockCount/16));
+            for (int i=0; i<allocatedCount; i++){
+                long size = (long)(Math.random()*128);
+                addresses.add(allocator.allocate(size));
+            }
+
+            int freeCount = (int) (Math.random() * allocatedCount);
+            for (int i=0; i<freeCount; i++){
+                int index = (int) (Math.random() * addresses.size());
+                allocator.free(addresses.get(index));
+                addresses.remove(index);
+            }
+        }
+
+        @Setup(Level.Invocation)
+        public void prepareFree() {
+            long size = (long)(Math.random()*128);
+            address = allocator.allocate(size);
+        }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            for (long address: addresses){
+                allocator.free(address);
+            }
+            allocator.close();
+        }
+    }
+
+    @State(Scope.Thread)
+    public static class FreeListAllocateState {
+
+        long totalSize = 16 * 1024 * 1024;
+        long minSize = 64;
+        int blockCount = (int)(totalSize/minSize);
+
+        OffHeapFreeListAllocator allocator;
+        long address;
+
+        List<Long> addresses = new ArrayList<>();
+
+        @Setup(Level.Trial)
+        public void setup() throws NoSuchFieldException, IllegalAccessException {
+            allocator = new OffHeapFreeListAllocator(totalSize, minSize);
+
+            int allocatedCount = (int) (Math.random() * (blockCount/16));
+            for (int i=0; i<allocatedCount; i++){
+                long size = (long)(Math.random()*128);
+                addresses.add(allocator.allocate(size));
+            }
+
+            int freeCount = (int) (Math.random() * allocatedCount);
+            for (int i=0; i<freeCount; i++){
+                int index = (int) (Math.random() * addresses.size());
+                allocator.free(addresses.get(index));
+                addresses.remove(index);
+            }
+        }
+
+        @TearDown(Level.Invocation)
+        public void completeAllocate() {
+            allocator.free(address);
+        }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            for (long address: addresses){
+                allocator.free(address);
+            }
+            allocator.close();
+        }
+    }
+
     @Benchmark
     public void slabFree(SlabFreeState state) {
         state.allocator.free(state.address);
@@ -193,6 +282,18 @@ public class MyBenchmark {
 
     @Benchmark
     public void buddyAllocate(BuddyAllocateState state) {
-        state.address = state.allocator.allocate(64);
+        long size = (long)(Math.random()*256);
+        state.address = state.allocator.allocate(size);
+    }
+
+    @Benchmark
+    public void freeListFree(FreeListFreeState state) {
+        state.allocator.free(state.address);
+    }
+
+    @Benchmark
+    public void freeListAllocate(FreeListAllocateState state) {
+        long size = (long)(Math.random()*128);
+        state.address = state.allocator.allocate(size);
     }
 }
