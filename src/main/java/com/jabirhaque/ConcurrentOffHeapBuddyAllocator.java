@@ -98,6 +98,7 @@ public class ConcurrentOffHeapBuddyAllocator implements OffHeapAllocator{
         return index>=0 && index<allocatorCount;
     }
 
+    @Override
     public void writeInt(long address, long offset, int val){
         lock.readLock().lock();
         try{
@@ -114,6 +115,7 @@ public class ConcurrentOffHeapBuddyAllocator implements OffHeapAllocator{
         }
     }
 
+    @Override
     public int readInt(long address, long offset){
         lock.readLock().lock();
         try{
@@ -145,6 +147,7 @@ public class ConcurrentOffHeapBuddyAllocator implements OffHeapAllocator{
         }
     }
 
+    @Override
     public AllocationStatistics getAllocationStatisticsSnapshot(){
         lock.readLock().lock();
         try{

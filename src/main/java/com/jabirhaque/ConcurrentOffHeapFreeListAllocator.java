@@ -4,23 +4,23 @@ import sun.misc.Unsafe;
 
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocator{
+public class ConcurrentOffHeapFreeListAllocator implements ConcurrentOffHeapAllocator{
 
-    private OffHeapSlabAllocator[] offHeapAllocators;
+    private OffHeapFreeListAllocator[] offHeapFreeListAllocators;
 
     private final Unsafe unsafe;
     private final long totalSize;
-    private final long blockSize;
+    private final long minSize;
     private final long baseAddress;
     private final int allocatorCount;
 
     private boolean closed = false;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
-    public ConcurrentOffHeapSlabAllocator(long totalSize, long blockSize, int allocatorCount) throws NoSuchFieldException, IllegalAccessException {
+    public ConcurrentOffHeapFreeListAllocator(long totalSize, long minSize, int allocatorCount) throws NoSuchFieldException, IllegalAccessException {
         this.unsafe = OffHeapAllocator.getUnsafe();
         this.totalSize = totalSize;
-        this.blockSize = blockSize;
+        this.minSize = minSize;
         this.allocatorCount = allocatorCount;
         validateInputs();
         this.baseAddress = unsafe.allocateMemory(totalSize);
@@ -32,10 +32,10 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
         }
     }
 
-    public ConcurrentOffHeapSlabAllocator(long totalSize, long blockSize, int allocatorCount, Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
+    public ConcurrentOffHeapFreeListAllocator(long totalSize, long minSize, int allocatorCount, Unsafe unsafe) throws NoSuchFieldException, IllegalAccessException {
         this.unsafe = unsafe;
         this.totalSize = totalSize;
-        this.blockSize = blockSize;
+        this.minSize = minSize;
         this.allocatorCount = allocatorCount;
         validateInputs();
         this.baseAddress = unsafe.allocateMemory(totalSize);
@@ -54,9 +54,9 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
 
     private void initiateAllocators() throws NoSuchFieldException, IllegalAccessException {
         long allocatorSize = totalSize/allocatorCount;
-        offHeapAllocators = new OffHeapSlabAllocator[allocatorCount];
+        offHeapFreeListAllocators = new OffHeapFreeListAllocator[allocatorCount];
         for (int i=0; i<allocatorCount; i++){
-            offHeapAllocators[i] = new OffHeapSlabAllocator(baseAddress+i*allocatorSize, allocatorSize, blockSize, unsafe);
+            offHeapFreeListAllocators[i] = new OffHeapFreeListAllocator(allocatorSize, minSize, unsafe, baseAddress+i*allocatorSize);
         }
     }
 
@@ -69,7 +69,7 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
                 throw new IllegalStateException("Allocator closed");
             }
             int index = Math.floorMod(Long.hashCode(Thread.currentThread().getId()), allocatorCount);
-            OffHeapSlabAllocator allocator = offHeapAllocators[index];
+            OffHeapFreeListAllocator allocator = offHeapFreeListAllocators[index];
             return allocator.allocate(bytes);
         }finally{
             lock.readLock().unlock();
@@ -86,7 +86,7 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
             if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
             long allocatorSize = totalSize/allocatorCount;
             int index = (int)((address-baseAddress)/allocatorSize);
-            OffHeapSlabAllocator allocator = offHeapAllocators[index];
+            OffHeapFreeListAllocator allocator = offHeapFreeListAllocators[index];
             allocator.free(address);
         }finally{
             lock.readLock().unlock();
@@ -109,7 +109,7 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
             if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
             long allocatorSize = totalSize/allocatorCount;
             int index = (int)((address-baseAddress)/allocatorSize);
-            OffHeapSlabAllocator allocator = offHeapAllocators[index];
+            OffHeapFreeListAllocator allocator = offHeapFreeListAllocators[index];
             allocator.writeInt(address, offset, val);
         }finally{
             lock.readLock().unlock();
@@ -126,7 +126,7 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
             if (!validateAddress(address)) throw new IllegalArgumentException("Provided address is invalid");
             long allocatorSize = totalSize/allocatorCount;
             int index = (int)((address-baseAddress)/allocatorSize);
-            OffHeapSlabAllocator allocator = offHeapAllocators[index];
+            OffHeapFreeListAllocator allocator = offHeapFreeListAllocators[index];
             return allocator.readInt(address, offset);
         }finally{
             lock.readLock().unlock();
@@ -138,7 +138,7 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
         lock.writeLock().lock();
         try{
             if (closed) return;
-            for (OffHeapSlabAllocator allocator: offHeapAllocators){
+            for (OffHeapFreeListAllocator allocator: offHeapFreeListAllocators){
                 if (allocator.allocated()) throw new IllegalStateException("Cannot close allocator, blocks still allocated");
             }
             closed = true;
@@ -153,7 +153,7 @@ public class ConcurrentOffHeapSlabAllocator implements ConcurrentOffHeapAllocato
         lock.readLock().lock();
         try{
             AllocationStatistics allocationStatisticsSnapshot = new AllocationStatistics(totalSize);
-            for (OffHeapSlabAllocator allocator: offHeapAllocators){
+            for (OffHeapFreeListAllocator allocator: offHeapFreeListAllocators){
                 AllocationStatistics allocationStatistics = allocator.getAllocationStatisticsSnapshot();
                 allocationStatisticsSnapshot.setAllocations(allocationStatisticsSnapshot.getAllocations()+allocationStatistics.getAllocations());
                 allocationStatisticsSnapshot.setFrees(allocationStatisticsSnapshot.getFrees()+allocationStatistics.getFrees());

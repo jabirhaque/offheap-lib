@@ -75,7 +75,7 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
             long address = allocateBlock();
             updateAllocatedStatisticsOnAllocation();
             return address;
-        }catch(Exception e){
+        }catch(Throwable e){
             allocationStatistics.setFailedAllocations(allocationStatistics.getFailedAllocations()+1);
             throw e;
         }
@@ -142,18 +142,21 @@ public class OffHeapSlabAllocator implements OffHeapAllocator{
         System.out.println("Page size: " + unsafe.pageSize());
     }
 
+    @Override
     public synchronized void writeInt(long address, long offset, int value) {
-        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > blockSize)
+        if (!validateAddress(address) || offset < 0 || offset > blockSize - Integer.BYTES)
             throw new IllegalArgumentException("Address invalid");
         unsafe.putInt(address+offset, value);
     }
 
+    @Override
     public synchronized int readInt(long address, long offset){
-        if (!validateAddress(address) || offset < 0 || offset + Integer.BYTES > blockSize)
+        if (!validateAddress(address) || offset < 0 || offset > blockSize - Integer.BYTES)
             throw new IllegalArgumentException("Address invalid");
         return unsafe.getInt(address+offset);
     }
 
+    @Override
     public synchronized AllocationStatistics getAllocationStatisticsSnapshot(){
         return new AllocationStatistics(
                 totalSize,
