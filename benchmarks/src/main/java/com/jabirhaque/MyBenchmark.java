@@ -200,7 +200,7 @@ public class MyBenchmark {
 
             int allocatedCount = (int) (Math.random() * (blockCount/16));
             for (int i=0; i<allocatedCount; i++){
-                long size = (long)(Math.random()*128);
+                long size = (long)(Math.random()*128)+1;
                 addresses.add(allocator.allocate(size));
             }
 
@@ -246,7 +246,7 @@ public class MyBenchmark {
 
             int allocatedCount = (int) (Math.random() * (blockCount/16));
             for (int i=0; i<allocatedCount; i++){
-                long size = (long)(Math.random()*128);
+                long size = (long)(Math.random()*128)+1;
                 addresses.add(allocator.allocate(size));
             }
 
