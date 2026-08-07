@@ -141,6 +141,7 @@ public class MyBenchmark {
 
         OffHeapBuddyAllocator allocator;
         long address;
+        long size;
 
         List<Long> addresses = new ArrayList<>();
 
@@ -160,6 +161,11 @@ public class MyBenchmark {
                 allocator.free(addresses.get(index));
                 addresses.remove(index);
             }
+        }
+
+        @Setup(Level.Invocation)
+        public void prepareALlocate() {
+            size = sizes[(int)(Math.random()*3)];
         }
 
         @TearDown(Level.Invocation)
@@ -230,6 +236,7 @@ public class MyBenchmark {
 
         OffHeapFreeListAllocator allocator;
         long address;
+        long size;
 
         List<Long> addresses = new ArrayList<>();
 
@@ -249,6 +256,11 @@ public class MyBenchmark {
                 allocator.free(addresses.get(index));
                 addresses.remove(index);
             }
+        }
+
+        @Setup(Level.Invocation)
+        public void prepareALlocate() {
+            size = (long)(Math.random()*128 + 1);
         }
 
         @TearDown(Level.Invocation)
@@ -282,8 +294,7 @@ public class MyBenchmark {
 
     @Benchmark
     public void buddyAllocate(BuddyAllocateState state) {
-        long size = (long)(Math.random()*256);
-        state.address = state.allocator.allocate(size);
+        state.address = state.allocator.allocate(state.size);
     }
 
     @Benchmark
@@ -293,7 +304,6 @@ public class MyBenchmark {
 
     @Benchmark
     public void freeListAllocate(FreeListAllocateState state) {
-        long size = (long)(Math.random()*128);
-        state.address = state.allocator.allocate(size);
+        state.address = state.allocator.allocate(state.size);
     }
 }
