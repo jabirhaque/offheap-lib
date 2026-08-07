@@ -214,7 +214,7 @@ public class MyBenchmark {
 
         @Setup(Level.Invocation)
         public void prepareFree() {
-            long size = (long)(Math.random()*128);
+            long size = (long)(Math.random()*128)+1;
             address = allocator.allocate(size);
         }
 
