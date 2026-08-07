@@ -193,12 +193,14 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
         return (num & (num-1)) == 0;
     }
 
+    @Override
     public synchronized void writeInt(long address, long offset, int value) {
         if (!validateAddress(address) || offset < 0 || offset  > (minSize<<allocatedMap.get(address-baseAddress)) - Integer.BYTES)
             throw new IllegalArgumentException("Address invalid");
         unsafe.putInt(address+offset, value);
     }
 
+    @Override
     public synchronized int readInt(long address, long offset){
         if (!validateAddress(address) || offset < 0 || offset > (minSize<<allocatedMap.get(address-baseAddress)) - Integer.BYTES)
             throw new IllegalArgumentException("Address invalid");

@@ -177,6 +177,7 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
         return allocationStatistics.getActiveAllocations() > 0;
     }
 
+    @Override
     public synchronized void writeInt(long address, long offset, int value) {
         if (!validateAddress(address)) throw new IllegalArgumentException("Address invalid");
         long size = unsafe.getLong(address - HEADER_SIZE + SIZE_OFFSET);
@@ -184,6 +185,7 @@ public class OffHeapFreeListAllocator implements OffHeapAllocator{
         unsafe.putInt(address+offset, value);
     }
 
+    @Override
     public synchronized int readInt(long address, long offset){
         if (!validateAddress(address)) throw new IllegalArgumentException("Address invalid");
         long size = unsafe.getLong(address - HEADER_SIZE + SIZE_OFFSET);
