@@ -2,6 +2,7 @@ package com.jabirhaque;
 
 import sun.misc.Unsafe;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,8 +16,9 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
     private boolean closed = false;
     private final int levels;
 
-    private long[][] freeLists;
+    private long[][] freeOffsets;
     private int[] freeCounts;
+    private int[][] freeIndex; // level, offset, tells you where in freeOffsets the block is
 
     private Map<Long, Integer> allocatedMap;
 
@@ -60,24 +62,32 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     private void validate(long totalSize, long minSize){
         if (minSize>totalSize) throw new IllegalArgumentException("Minimum block size cannot be greater than the total size");
-        if (totalSize <= 0 | minSize <= 0) throw new IllegalArgumentException("Total and block size must be at least one byte");
+        if (totalSize <= 0 || minSize <= 0) throw new IllegalArgumentException("Total and block size must be at least one byte");
         if (!powerOfTwo(totalSize) || !powerOfTwo(minSize)) throw new IllegalArgumentException("Both total size and minimum block size must be powers of two");
         long count = totalSize / minSize;
         if (count > Integer.MAX_VALUE) throw new IllegalArgumentException("Block count exceeds limit");
     }
 
     private void initialiseBlocks() {
-        freeLists = new long[levels][];
+        freeOffsets = new long[levels][];
         freeCounts = new int[levels];
+        freeIndex = new int[levels][];
 
         for (int level = 0; level < levels; level++) {
             long blockSize = minSize << level;
             int maxBlocks = (int)(totalSize / blockSize);
-            freeLists[level] = new long[maxBlocks];
+            freeOffsets[level] = new long[maxBlocks];
+            freeIndex[level] = new int[maxBlocks];
+            Arrays.fill(freeIndex[level], -1);
         }
 
-        freeLists[levels - 1][0] = 0;
+        freeOffsets[levels - 1][0] = 0;
         freeCounts[levels - 1] = 1;
+        freeIndex[levels - 1][0] = 0;
+    }
+
+    private int getIndex(long offset, int level){
+        return (int)(offset/(minSize<<level));
     }
 
     @Override
@@ -90,7 +100,14 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
                 throw new IllegalArgumentException("Requested size exceeds total size");
             }
             int level = getLevel(bytes);
-            long offset = (freeCounts[level] > 0) ? freeLists[level][--freeCounts[level]] : splitAndAllocate(level+1);
+            long offset;
+            if (freeCounts[level] > 0){
+                offset = freeOffsets[level][--freeCounts[level]];
+                int index = getIndex(offset, level);
+                freeIndex[level][index] = -1;
+            }else{
+                offset = splitAndAllocate(level+1);
+            }
             allocatedMap.put(offset, level);
             unsafe.setMemory(baseAddress+offset, minSize<<level , (byte)0);
             updateAllocatedStatisticsOnAllocation(minSize<<level);
@@ -103,9 +120,18 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     private long splitAndAllocate(int level){
         if (level == levels) throw new OutOfMemoryError("Out of blocks to fit this request");
-        long offset = (freeCounts[level] > 0) ? freeLists[level][--freeCounts[level]] : splitAndAllocate(level+1);
+        long offset;
+        if (freeCounts[level] > 0){
+            offset = freeOffsets[level][--freeCounts[level]];
+            int index = getIndex(offset, level);
+            freeIndex[level][index] = -1;
+        }else{
+            offset = splitAndAllocate(level+1);
+        }
         long buddyOffset = offset + (minSize<<(level-1));
-        freeLists[level-1][freeCounts[level-1]++] = buddyOffset;
+        int buddyIndex = getIndex(buddyOffset, level-1);
+        freeIndex[level-1][buddyIndex] = freeCounts[level-1];
+        freeOffsets[level-1][freeCounts[level-1]++] = buddyOffset;
         return offset;
     }
 
@@ -148,18 +174,17 @@ public class OffHeapBuddyAllocator implements OffHeapAllocator{
 
     private void mergeAndFree(long offset, int level){
         long buddyOffset = offset ^ (minSize << level);
-        int index = freeCounts[level];
-        for (int i=0; i<freeCounts[level]; i++){
-            if (freeLists[level][i] == buddyOffset){
-                index = i;
-                break;
-            }
-        }
-        if (index == freeCounts[level]){
-            freeLists[level][freeCounts[level]++] = offset;
+        int index = (level == levels-1) ? -1 : freeIndex[level][getIndex(buddyOffset, level)];
+        if (index == -1){
+            freeIndex[level][getIndex(offset, level)] = freeCounts[level];
+            freeOffsets[level][freeCounts[level]++] = offset;
             return;
         }
-        freeLists[level][index] = freeLists[level][--freeCounts[level]];
+        freeOffsets[level][index] = freeOffsets[level][--freeCounts[level]];
+        if (index<freeCounts[level]){
+            freeIndex[level][getIndex(freeOffsets[level][index], level)] = index;
+        }
+        freeIndex[level][getIndex(buddyOffset, level)] = -1;
         mergeAndFree(Math.min(offset, buddyOffset), level+1);
     }
 
